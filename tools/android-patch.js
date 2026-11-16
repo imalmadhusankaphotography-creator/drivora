@@ -7,7 +7,7 @@ function must(c,m){if(!c){console.error('PATCH FAILED: '+m);process.exit(1);}}
 must(fs.existsSync(pkgDir),'android project not found - run "npx cap add android" first');
 
 // 1. native sources
-['MainActivity.java','ObdLinkPlugin.java','MediaLibPlugin.java'].forEach(function(f){fs.copyFileSync(path.join(root,'native',f),path.join(pkgDir,f));});
+['MainActivity.java','ObdLinkPlugin.java','MediaLibPlugin.java','VoicePlugin.java'].forEach(function(f){fs.copyFileSync(path.join(root,'native',f),path.join(pkgDir,f));});
 
 // 2. manifest permissions
 var mf=path.join(app,'src/main/AndroidManifest.xml'),m=fs.readFileSync(mf,'utf8');
@@ -20,9 +20,15 @@ if(m.indexOf('ACCESS_FINE_LOCATION')<0){
     '    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />',
     '    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />',
     '    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />',
+    '    <uses-permission android:name="android.permission.RECORD_AUDIO" />',
     '    <uses-feature android:name="android.hardware.location.gps" android:required="false" />',
+    '    <uses-feature android:name="android.hardware.microphone" android:required="false" />',
     '    <uses-feature android:name="android.hardware.bluetooth" android:required="false" />',
     '    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />',
+    '    <queries>',
+    '        <intent><action android:name="android.speech.RecognitionService" /></intent>',
+    '        <intent><action android:name="android.intent.action.TTS_SERVICE" /></intent>',
+    '    </queries>',
     ''].join('\n');
   must(m.indexOf('</manifest>')>0,'manifest end tag not found');
   m=m.replace('</manifest>',perms+'</manifest>');

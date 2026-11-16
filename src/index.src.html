@@ -143,7 +143,10 @@ body.over #spd{color:var(--warn);text-shadow:0 0 .25em rgba(255,59,78,.5)}
 .navc{display:flex;flex-direction:column;padding:1.2rem}
 .banner{height:5.6rem;flex:none;border-radius:1rem;display:flex;align-items:center;padding:0 1.2rem;background:rgba(255,255,255,.05);color:var(--dim)}
 .banner svg{width:3rem;height:3rem;margin-right:1rem;flex:none}
-.banner div{min-width:0}
+.banner div{min-width:0;flex:1}
+.banner .btn{height:4rem;margin-left:.6rem;background:#fff;border-color:#fff;color:#0b3d22;font-weight:600;font-style:italic}
+.banner .ib{width:4rem;height:4rem;color:#fff;flex:none}
+.banner .ib svg{width:2.2rem;height:2.2rem;margin:0}
 .banner b{display:block;font-size:2.1rem;font-style:italic;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .banner span{font-size:1.4rem;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .banner.go{background:#157a43;color:#d7f7e4}.banner.go b{color:#fff}
@@ -177,7 +180,9 @@ body.over #spd{color:var(--warn);text-shadow:0 0 .25em rgba(255,59,78,.5)}
 @keyframes pulse{50%{box-shadow:0 0 3.4rem rgba(var(--accRgb),.9),inset 0 0 1.6rem rgba(var(--accRgb),.4)}}
 .jtxt{margin-left:1.3rem;min-width:0;flex:1}
 .jtxt b{font-size:2.3rem;font-style:italic;font-weight:600;color:var(--acc);display:block}
+#jHeard{font-size:1.4rem;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-height:1.7rem}
 #jMsg{font-size:1.7rem;max-height:4.2rem;overflow:hidden}
+.irow .ib{margin-left:.6rem;flex:none}
 
 /* overlays */
 .toast{position:fixed;left:50%;bottom:9rem;-webkit-transform:translateX(-50%);transform:translateX(-50%);max-width:70%;padding:1.1rem 1.8rem;border-radius:1.2rem;background:#0d2733;border:1px solid var(--acc);font-size:1.8rem;z-index:60;display:none;text-align:center}
@@ -312,17 +317,17 @@ body.ptab .right{grid-column:2;grid-row:2;max-width:none}
 
     <div class="col right">
       <section class="card navc grow">
-        <div class="banner" id="banner"><span data-ic="nav"></span><div><b id="bTitle">No destination</b><span id="bSub">Type a place below, or ask the assistant</span></div></div>
+        <div class="banner" id="banner"><span data-ic="nav"></span><div><b id="bTitle">No destination</b><span id="bSub">Type a place below, or ask the assistant</span></div><button class="btn hide" id="bStart">Start</button><button class="ib hide" id="bEnd" aria-label="Clear destination" data-ic="close"></button></div>
         <div class="trail" id="trail"><canvas id="trailCv"></canvas><iframe id="gmap" class="hide" title="Google map"></iframe><div class="hd" id="trailHd"></div><button class="mapsw" id="mapSw">Show trail</button></div>
         <div class="irow"><input class="inp" id="dest" placeholder="Where to?" autocomplete="off" enterkeyhint="go"><button class="btn pri" id="destGo">Go</button></div>
         <div class="chips" id="chips"></div>
       </section>
       <section class="card jar gap">
         <div class="jtop">
-          <div class="orb" id="orb"></div>
-          <div class="jtxt"><b>JARVIS</b><div id="jMsg">How can I help you?</div></div>
+          <button class="orb" id="orb" aria-label="Speak a command"></button>
+          <div class="jtxt"><b>Assistant</b><div id="jHeard"></div><div id="jMsg">Tap the mic and speak</div></div>
         </div>
-        <div class="irow"><input class="inp" id="cmd" placeholder="Try: go to Kandy" autocomplete="off" enterkeyhint="send"><button class="ib act hide" id="mic" aria-label="Speak" data-ic="mic"></button><button class="btn" id="cmdGo">Send</button></div>
+        <div class="irow"><input class="inp" id="cmd" placeholder="Or type: go to Kandy" autocomplete="off" enterkeyhint="send"><button class="ib act" id="mic" aria-label="Speak a command" data-ic="mic"></button><button class="btn hide" id="cmdGo">Send</button></div>
       </section>
     </div>
   </div>
@@ -366,6 +371,8 @@ body.ptab .right{grid-column:2;grid-row:2;max-width:none}
     <div class="fld"><span class="lbl">Speed source</span><div class="seg" id="sSrc"><button data-v="auto">Automatic (OBD when connected)</button><button data-v="gps">GPS only</button></div></div>
     <div class="fld"><span class="lbl">Speed limit warning</span><div class="seg" id="sLimit"><button data-v="0">Off</button><button data-v="40">40</button><button data-v="50">50</button><button data-v="60">60</button><button data-v="70">70</button><button data-v="100">100</button><button data-v="120">120</button></div></div>
     <div class="fld"><span class="lbl">Warning sound</span><div class="seg" id="sBeep"><button data-v="1">On</button><button data-v="0">Off</button></div></div>
+    <div class="fld"><span class="lbl">Voice command language</span><div class="seg" id="sVlang"><button data-v="en-US">English</button><button data-v="si-LK">සිංහල</button></div></div>
+    <div class="fld"><span class="lbl">Spoken replies</span><div class="seg" id="sTalk"><button data-v="1">On</button><button data-v="0">Off</button></div></div>
     <div class="fld"><span class="lbl">Screen brightness</span><div class="seg" id="sTheme"><button data-v="auto">Dim after sunset</button><button data-v="day">Always bright</button><button data-v="night">Always dim</button></div></div>
     <div class="two"><div class="fld"><label for="sPrice">Fuel price per litre</label><input class="inp" id="sPrice" inputmode="decimal" placeholder="0"></div><div class="fld"><label for="sCur">Currency</label><input class="inp" id="sCur" placeholder="Rs"></div></div>
     <h3>This trip</h3>
@@ -468,7 +475,7 @@ function icon(n){return '<svg viewBox="0 0 24 24" aria-hidden="true">'+(IC[n]||'
 /* ---------- state ---------- */
 var THEMES={cyan:'31,208,240',red:'255,45,70',amber:'255,176,32',white:'226,238,243',green:'60,255,140',purple:'170,110,255',blue:'60,130,255',pink:'255,90,190',orange:'255,130,40',yellow:'255,225,50'};
 var state={v:1,cars:[],cur:null,trip:{dist:0,moving:0,max:0,smooth:0},
-  set:{unit:'kmh',src:'auto',limit:0,beep:1,theme:'auto',price:0,cur:'Rs',obd:null,acc:'cyan',map:'map'},places:[],recent:[],pos:null};
+  set:{unit:'kmh',src:'auto',limit:0,beep:1,theme:'auto',price:0,cur:'Rs',obd:null,acc:'cyan',map:'map',vlang:'en-US',talk:1},places:[],recent:[],pos:null};
 var dirty=false;
 function load(){
   try{var raw=localStorage.getItem(KEY);if(!raw)return;var s=JSON.parse(raw),k;
@@ -489,7 +496,7 @@ var demoOn=false;
 /* ---------- toast / confirm / sheets ---------- */
 var toastT=null;
 function toast(m){var t=$('toast');t.textContent=m;t.classList.add('show');clearTimeout(toastT);toastT=setTimeout(function(){t.classList.remove('show');},3200);}
-function say(m){$('jMsg').textContent=m;}
+function say(m,silent){$('jMsg').textContent=m;if(!silent)speak(m);}
 var cfFn=null;
 function confirmBar(text,yes,fn){$('cfText').textContent=text;$('cfYes').textContent=yes;cfFn=fn;$('confirm').classList.add('show');}
 $('cfYes').onclick=function(){$('confirm').classList.remove('show');var f=cfFn;cfFn=null;if(f)f();};
@@ -1157,19 +1164,30 @@ function mapTick(force){
 }
 $('mapSw').onclick=function(){state.set.map=state.set.map==='trail'?'map':'trail';save();mapTick(true);trailDirty=true;drawTrail();
   if(state.set.map==='map'&&!mapUrlNow)toast(navigator.onLine===false?'The map needs an internet connection':'The map appears once GPS finds your position');};
-$('banner').onclick=function(){if(!navDest)return;confirmBar('End navigation to '+navDest+'?','End',function(){navDest='';$('banner').className='banner';$('bTitle').textContent='No destination';$('bSub').textContent='Type a place below, or ask the assistant';mapTick(true);say('Navigation ended.');});};
 window.addEventListener('online',function(){mapTick(true);});window.addEventListener('offline',function(){mapTick(true);});
 
-function navigate(q){
+function setDest(q){
   q=trim(q);if(!q)return;
   var i;for(i=state.recent.length-1;i>=0;i--)if(state.recent[i].toLowerCase()===q.toLowerCase())state.recent.splice(i,1);
   state.recent.unshift(q);if(state.recent.length>6)state.recent.length=6;save();
-  navDest=q;$('banner').className='banner go';$('bTitle').textContent=q;$('bSub').textContent='Guidance runs in Google Maps. Tap here to end.';mapTick(true);
-  var u='https://www.google.com/maps/dir/?api=1&destination='+encodeURIComponent(q)+'&travelmode=driving&dir_action=navigate';
-  say('Starting navigation to '+q+'.');
+  navDest=q;$('banner').className='banner go';$('bTitle').textContent=q;$('bSub').textContent='Route is on the map';
+  $('bStart').classList.remove('hide');$('bEnd').classList.remove('hide');
+  mapTick(true);say('Destination set to '+q+'. Say start, or tap Start.');
+}
+function startNav(){
+  if(!navDest){say('Set a destination first.');return;}
+  var u='https://www.google.com/maps/dir/?api=1&destination='+encodeURIComponent(navDest)+'&travelmode=driving&dir_action=navigate';
+  $('bSub').textContent='Guidance is running in Google Maps';say('Starting guidance to '+navDest+'.');
   if(window.DRIVORA_TEST){window.DRIVORA_TEST.push(u);return;}
   if(window.Capacitor&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform())window.location.href=u;else window.open(u,'_blank');
 }
+function endNav(){
+  if(!navDest){say('There is no destination set.');return;}
+  navDest='';$('banner').className='banner';$('bTitle').textContent='No destination';$('bSub').textContent='Type a place below, or ask the assistant';
+  $('bStart').classList.add('hide');$('bEnd').classList.add('hide');mapTick(true);say('Destination cleared.');
+}
+function navigate(q){setDest(q);startNav();}
+$('bStart').onclick=startNav;$('bEnd').onclick=endNav;
 function renderPlaces(){
   var h='',i,c='';
   if(!state.places.length)h='<p>No saved places yet.</p>';
@@ -1181,57 +1199,118 @@ function renderPlaces(){
   $('rList').innerHTML=h;
   $('chips').innerHTML=c+'<button class="chip" data-p="all">'+(state.places.length?'All places':'Save a place')+'</button>';
 }
-$('chips').onclick=function(e){var p=e.target.getAttribute('data-p');if(p==='all'){renderPlaces();openSheet('shPlaces');}else if(p!==null&&state.places[+p])navigate(state.places[+p].q);};
+$('chips').onclick=function(e){var p=e.target.getAttribute('data-p');if(p==='all'){renderPlaces();openSheet('shPlaces');}else if(p!==null&&state.places[+p])setDest(state.places[+p].q);};
 $('pAdd').onclick=function(){var n=trim($('pName').value),q=trim($('pQ').value);if(!n||!q){toast('Enter both a name and a place');return;}state.places.push({n:n,q:q});save();$('pName').value='';$('pQ').value='';renderPlaces();toast('Saved '+n);};
-$('pList').onclick=function(e){var g=e.target.getAttribute('data-go'),d=e.target.getAttribute('data-del');if(g!==null){closeSheets();navigate(state.places[+g].q);}else if(d!==null){state.places.splice(+d,1);save();renderPlaces();}};
-$('rList').onclick=function(e){var r=e.target.getAttribute('data-r');if(r!==null){closeSheets();navigate(state.recent[+r]);}};
-function destGo(){var v=trim($('dest').value);if(!v){toast('Type a place first');return;}$('dest').value='';$('dest').blur();navigate(v);}
+$('pList').onclick=function(e){var g=e.target.getAttribute('data-go'),d=e.target.getAttribute('data-del');if(g!==null){closeSheets();setDest(state.places[+g].q);}else if(d!==null){state.places.splice(+d,1);save();renderPlaces();}};
+$('rList').onclick=function(e){var r=e.target.getAttribute('data-r');if(r!==null){closeSheets();setDest(state.recent[+r]);}};
+function destGo(){var v=trim($('dest').value);if(!v){toast('Type a place first');return;}$('dest').value='';$('dest').blur();setDest(v);}
 $('destGo').onclick=destGo;$('dest').onkeydown=function(e){if(e.keyCode===13)destGo();};
 
-/* ---------- assistant: command router (the AI agent plugs in here later) ---------- */
-function runCommand(raw){
-  var t=trim(raw),l=t.toLowerCase().replace(/[.!?]+$/,''),m,i;
-  if(!t)return '';
-  if((m=/^(?:navigate to|navigate|go to|take me to|drive to|directions to)\s+(.+)$/i.exec(t))){
-    for(i=0;i<state.places.length;i++)if(state.places[i].n.toLowerCase()===trim(m[1]).toLowerCase()){navigate(state.places[i].q);return 'nav';}
-    navigate(m[1]);return 'nav';}
-  for(i=0;i<state.places.length;i++)if(state.places[i].n.toLowerCase()===l){navigate(state.places[i].q);return 'nav';}
-  if(/^(play|resume)( music| song)?$/.test(l)){if(!tracks.length){say('There is no music yet. Add songs first.');openMusic();}else{if(audio.paused)mToggle();say('Playing music.');}return 'play';}
-  if(/^(pause|stop)( music| song)?$/.test(l)){audio.pause();say('Music paused.');return 'pause';}
-  if(/^(next|skip)( song| track)?$/.test(l)){mNext(false);say('Next song.');return 'next';}
-  if(/^(prev|previous|back|last)( song| track)?$/.test(l)){mPrev();say('Previous song.');return 'prev';}
-  if(/^shuffle( on| off)?$/.test(l)){shuf=!/off$/.test(l);mUpdate();say(shuf?'Shuffle is on.':'Shuffle is off.');return 'shuffle';}
-  if((m=/^(?:speed )?limit (?:to )?(off|\d{2,3})$/.exec(l))){state.set.limit=m[1]==='off'?0:+m[1];save();updLimitMark();say(state.set.limit?'I will warn you above '+state.set.limit+'.':'Speed limit warning is off.');return 'limit';}
-  if((m=/^(?:theme|colou?r)(?: to)? ([a-z]+)$/.exec(l))&&THEMES[m[1]]){setAcc(THEMES[m[1]],true);say('Theme set to '+m[1]+'.');return 'theme';}
-  if(/^(reset|clear|new) trip$/.test(l)){resetTrip();say('Trip reset.');return 'trip';}
-  if(/^(hud|hud mode|full ?screen)$/.test(l)){setHud(true);return 'hud';}
-  if(/^(exit|close|leave) hud$/.test(l)){setHud(false);return 'hud';}
-  if(/^mirror( on| off)?$/.test(l)){tog(document.body,'mirror',!/off$/.test(l));return 'mirror';}
-  if(/^(demo|start demo|demo drive)$/.test(l)){setDemo(true);say('Demo drive started.');return 'demo';}
-  if(/^(stop demo|end demo)$/.test(l)){setDemo(false);say('Demo drive stopped.');return 'demo';}
-  if(/^(how fast|speed|what is my speed)$/.test(l)){say(live.target===null?'I have no speed reading yet.':'You are doing '+Math.round(live.disp)+' '+(mph()?'miles':'kilometres')+' per hour.');return 'speed';}
-  if(/^(trip|how far)$/.test(l)){say('This trip is '+state.trip.dist.toFixed(1)+' kilometres so far.');return 'tripq';}
-  if(/^(end|stop|cancel) (navigation|route|trip guidance)$/.test(l)){navDest='';$('banner').className='banner';$('bTitle').textContent='No destination';$('bSub').textContent='Type a place below, or ask the assistant';mapTick(true);say('Navigation ended.');return 'navend';}
-  if(/^(help|what can you do)$/.test(l)){say('Try: go to Kandy, play, next, limit 70, theme red, reset trip, HUD.');return 'help';}
-  say('Did you mean a place? Confirm to start navigation.');
-  confirmBar('Navigate to "'+t+'"?','Start',function(){navigate(t);});
-  return 'ask';
+/* ---------- assistant: voice in, command router, voice out ----------
+   A small built-in helper for simple driving tasks. A fuller AI agent can replace or extend
+   runCommand() later; everything it needs is on window.DRIVORA. */
+function voicePlugin(){var c=window.Capacitor;return(c&&c.Plugins&&c.Plugins.Voice)?c.Plugins.Voice:null;}
+function speak(t){
+  if(!+state.set.talk)return;
+  var p=voicePlugin();
+  if(p){try{p.speak({text:t,lang:'en-US'})['catch'](function(){});}catch(e){}return;}
+  try{if(window.speechSynthesis&&window.SpeechSynthesisUtterance){var u=new window.SpeechSynthesisUtterance(t);u.lang='en-US';window.speechSynthesis.cancel();window.speechSynthesis.speak(u);}}catch(e2){}
 }
-function cmdGo(){var v=$('cmd').value;$('cmd').value='';$('cmd').blur();if(trim(v))runCommand(v);}
-$('cmdGo').onclick=cmdGo;$('cmd').onkeydown=function(e){if(e.keyCode===13)cmdGo();};
-(function(){
-  var SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR)return;
-  var mic=$('mic');mic.classList.remove('hide');$('cmdGo').classList.add('hide');
-  $('cmd').oninput=function(){var e=!trim(this.value);tog(mic,'hide',!e);tog($('cmdGo'),'hide',e);};
-  mic.onclick=function(){
-    var r;try{r=new SR();}catch(e){return;}
-    r.lang='en-US';r.interimResults=false;$('orb').classList.add('busy');say('Listening.');
-    r.onresult=function(e){var t=e.results[0][0].transcript;say(t);runCommand(t);};
-    r.onerror=function(){say('I could not hear that. Type it instead.');};
-    r.onend=function(){$('orb').classList.remove('busy');};
-    try{r.start();}catch(e2){$('orb').classList.remove('busy');}
-  };
-})();
+function clock12(){var d=new Date(),h=d.getHours();return ((h+11)%12+1)+':'+pad2(d.getMinutes())+' '+(h<12?'AM':'PM');}
+function unitWord(){return mph()?'miles per hour':'kilometres per hour';}
+function findPlace(n){var i,k=trim(n).toLowerCase();for(i=0;i<state.places.length;i++)if(state.places[i].n.toLowerCase()===k)return state.places[i].q;return null;}
+function runCommand(raw){
+  var t=trim(String(raw==null?'':raw)).replace(/[.!?,]+$/,''),l,m,q,i,c=car();
+  if(!t)return '';
+  l=trim(t.toLowerCase().replace(/^(?:hey |ok |okay )?(?:assistant|jarvis)[, ]+/,'').replace(/^(?:please |can you |could you |will you )+/,'').replace(/ please$/,''));
+  t=t.substr(t.length-l.length);
+
+  /* speed first, so that "keeyada yanne" is not read as a place */
+  if(/^(how fast(?: am i going| are we going)?|speed|my speed|current speed|what(?:'s| is) (?:my|the|our) speed)$/.test(l)||/වේගය|ස්පීඩ්|කීයෙන්ද|කීයද යන්නේ|speed eka|wegaya|keeyada yanne|kiyada yanne/.test(l)){
+    say(live.target===null?'I have no speed reading yet.':'You are doing '+Math.round(live.disp)+' '+unitWord()+'.');return 'speed';}
+
+  /* destination: lock it, show the route, wait for "start" */
+  if((m=/^(?:navigate to|navigate|go to|take me to|drive to|directions to|route to|set (?:the |my )?destination(?: to| as)?|lock (?:the |my )?destination(?: to| as)?|destination(?: is)?)\s+(.+)$/.exec(l))){
+    q=findPlace(m[1])||t.substr(t.length-m[1].length);setDest(q);return 'nav';}
+  if(/[඀-෿]/.test(l)&&(m=/^(.+?)\s*(?:වලට|වෙත|ට)?\s*(?:යමු|යන්න ඕනේ|යන්න ඕනෑ|යන්න ඕන|යන්න|යනවා)$/.exec(l))&&trim(m[1])){
+    setDest(findPlace(m[1])||trim(m[1]));return 'nav';}
+  if((m=/^(.+?)\s+(?:walata|wlata|ekata|ta)\s+(?:yamu|yanna ona|yanna one|yanna)$/.exec(l))){setDest(findPlace(m[1])||t.substr(0,m[1].length));return 'nav';}
+  if((q=findPlace(l))){setDest(q);return 'nav';}
+  if(navDest&&/^(start|begin|start navigation|start guidance|start the route|start route|yes|ok|okay|let's go|lets go|go|පටන් ගන්න|යමු|ඔව්|හරි|patan ganna|yamu|ow|hari)$/.test(l)){startNav();return 'start';}
+  if(/^(end|stop|cancel|clear)(?: the| my)? (navigation|route|guidance|destination)$/.test(l)||/(නැවිගේෂන්|ගමන|පාර).*(නවත්|අවසන්|ඉවර)/.test(l)){endNav();return 'navend';}
+
+  /* map */
+  if(/^(?:show|open|load|display)(?: me)?(?: the| my)? map$|^map$|^where am i$/.test(l)||/මැප්|සිතියම|map eka/.test(l)){
+    state.set.map='map';save();closeSheets();mapTick(true);
+    say(mapUrlNow?'The map is on screen.':(navigator.onLine===false?'The map needs an internet connection.':'The map appears once GPS finds your position.'));return 'map';}
+  if(/^(?:show|open)(?: the| my)? (?:trail|route trail|path)$/.test(l)){state.set.map='trail';save();mapTick(true);trailDirty=true;drawTrail();say('Showing the trail you have driven.');return 'trail';}
+
+  /* music */
+  if(/^(?:play|resume)(?: the| some| my)?(?: music| song| songs)?$/.test(l)||/(සින්දු|ගීත|මියුසික්|සංගීත).*(දාන්න|දාපන්|වාදනය|ප්ලේ|අහමු)|^ප්ලේ(?: කරන්න)?$/.test(l)||/^(?:sindu|sinduwak|geetha)(?: ekak)? (?:danna|dapan|play karanna)$/.test(l)){
+    if(!tracks.length){say('There is no music yet. Add songs first.');openMusic();}
+    else{if(tIdx<0||!mLoaded()||audio.paused)mToggle();say('Playing '+(tracks[tIdx]?tracks[tIdx].name:'music')+'.');}
+    return 'play';}
+  if(/^(?:pause|stop)(?: the)?(?: music| song)?$/.test(l)||/නවත්තන්න|නවතන්න|නවත්වන්න|පෝස්|ස්ටොප්/.test(l)||/^(?:sindu )?(?:nawaththanna|nawattanna|nawathanna)$/.test(l)){audio.pause();say('Music paused.');return 'pause';}
+  if(/^(?:next|skip)(?: song| track| one)?$/.test(l)||/ඊළඟ|ඊලඟ|නෙක්ස්ට්|^(?:eelanga|ilanga|eelaga)/.test(l)){
+    if(!tracks.length){say('There is no music yet.');return 'next';}mNext(false);say('Next song. '+(tracks[tIdx]?tracks[tIdx].name:'')+'.');return 'next';}
+  if(/^(?:prev|previous|back|last)(?: song| track| one)?$/.test(l)||/කලින් (?:සින්දු|ගීත|එක)|පෙර (?:සින්දු|ගීත)|^kalin (?:sindu|eka)/.test(l)){
+    if(!tracks.length){say('There is no music yet.');return 'prev';}mPrev();say('Previous song.');return 'prev';}
+  if(/^shuffle(?: on| off)?$/.test(l)){shuf=!/off$/.test(l);mSave();mUpdate();say(shuf?'Shuffle is on.':'Shuffle is off.');return 'shuffle';}
+  if(/^repeat(?: on| off| all| one| this song)?$/.test(l)){rep=/off$/.test(l)?0:(/one$|this song$/.test(l)?2:1);mSave();mUpdate();say(['Repeat is off.','Repeating all songs.','Repeating this song.'][rep]);return 'repeat';}
+  if(/^(?:open|show)(?: the| my)? (?:music|songs|playlist|song list)$/.test(l)){openMusic();say('Here is your music.');return 'music';}
+  if((m=/^play (.+)$/.exec(l))){
+    for(i=0;i<tracks.length;i++)if((tracks[i].name+' '+(tracks[i].artist||'')).toLowerCase().indexOf(m[1])>=0){mPlayAt(i);say('Playing '+tracks[i].name+'.');return 'playname';}
+    say('I could not find '+m[1]+' in your music.');return 'playname';}
+
+  /* questions */
+  if(/^(?:time|the time|what time is it|what(?:'s| is) the time|current time)$/.test(l)||/වෙලාව|වේලාව|welawa/.test(l)){say('It is '+clock12()+'.');return 'time';}
+  if(/^(?:date|what(?:'s| is) (?:the|today's) date|what day is it|today)$/.test(l)){var d=new Date();say('Today is '+['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][d.getDay()]+', '+d.getDate()+' '+['January','February','March','April','May','June','July','August','September','October','November','December'][d.getMonth()]+'.');return 'date';}
+  if(/^(?:trip|how far|trip distance|how far have (?:i|we) (?:gone|driven|come))$/.test(l)||/දුර කීයද|කොච්චර දුර|dura keeyada/.test(l)){say('This trip is '+state.trip.dist.toFixed(1)+' kilometres so far.');return 'tripq';}
+  if(/^(?:top speed|max speed|maximum speed)$/.test(l)){say('Top speed this trip is '+Math.round(toDisp(state.trip.max))+' '+unitWord()+'.');return 'topq';}
+  if(/^(?:fuel|fuel level|how much fuel(?: is left| do i have| do we have)?)$/.test(l)||/තෙල්|ඉන්ධන|thel/.test(l)){say(live.fuel===null?'I have no fuel reading. That needs an OBD adapter.':'Fuel is at '+Math.round(live.fuel)+' percent.');return 'fuel';}
+  if(/^(?:engine temp(?:erature)?|temperature|coolant(?: temp(?:erature)?)?)$/.test(l)){say(live.cool===null?'I have no engine temperature. That needs an OBD adapter.':'Engine temperature is '+Math.round(live.cool)+' degrees.');return 'temp';}
+  if(/^(?:battery|battery voltage|battery level)$/.test(l)){say(live.volt===null?'I have no battery reading. That needs an OBD adapter.':'The battery is at '+live.volt.toFixed(1)+' volts.');return 'batt';}
+  if(/^(?:odometer|mileage|total distance)$/.test(l)){say(c?'The odometer is at '+commas(c.odo||0)+' kilometres.':'Add a vehicle first.');return 'odo';}
+  if(/^(?:service|next service|when is (?:my|the) next service)$/.test(l)){say(c&&c.service>0?(c.service-(c.odo||0)>=0?'Next service is in '+commas(c.service-(c.odo||0))+' kilometres.':'Service is overdue by '+commas((c.odo||0)-c.service)+' kilometres.'):'No service distance is set for this vehicle.');return 'service';}
+
+  /* settings */
+  if((m=/^(?:set )?(?:speed )?limit (?:to )?(off|\d{2,3})$/.exec(l))){state.set.limit=m[1]==='off'?0:+m[1];save();updLimitMark();say(state.set.limit?'I will warn you above '+state.set.limit+'.':'Speed limit warning is off.');return 'limit';}
+  if((m=/^(?:theme|colou?r)(?: to)? ([a-z]+)$/.exec(l))&&THEMES[m[1]]){setAcc(THEMES[m[1]],true);say('Theme set to '+m[1]+'.');return 'theme';}
+  if(/^(?:reset|clear|new) trip$/.test(l)){resetTrip();say('Trip reset.');return 'trip';}
+  if(/^(?:hud|hud mode|full ?screen)$/.test(l)){setHud(true);return 'hud';}
+  if(/^(?:exit|close|leave) hud$/.test(l)){setHud(false);return 'hud';}
+  if(/^mirror(?: on| off)?$/.test(l)){tog(document.body,'mirror',!/off$/.test(l));return 'mirror';}
+  if(/^(?:demo|start demo|demo drive)$/.test(l)){setDemo(true);say('Demo drive started.');return 'demo';}
+  if(/^(?:stop demo|end demo)$/.test(l)){setDemo(false);say('Demo drive stopped.');return 'demo';}
+  if(/^(?:help|what can you do|commands)$/.test(l)){say('Try: go to Kandy, start, play music, next, what is my speed, show map, limit 70.');return 'help';}
+  say('I did not catch that. Try: go to Kandy, play music, or what is my speed.');
+  return 'unknown';
+}
+function cmdGo(){var v=$('cmd').value;$('cmd').value='';$('cmd').blur();micSwap();if(trim(v)){heard(trim(v));runCommand(v);}}
+function micSwap(){var e=!trim($('cmd').value);tog($('mic'),'hide',!e);tog($('cmdGo'),'hide',e);}
+$('cmdGo').onclick=cmdGo;$('cmd').onkeydown=function(e){if(e.keyCode===13)cmdGo();};$('cmd').oninput=micSwap;
+var listening=false;
+function heard(t){$('jHeard').textContent=t?'“'+t+'”':'';}
+function duck(on){try{audio.volume=on?0.15:1;}catch(e){}}
+function listenDone(text,err){
+  listening=false;$('orb').classList.remove('busy');duck(false);
+  if(text){heard(text);runCommand(text);}else say(err||'I did not hear anything. Tap the mic and try again.',true);
+}
+function listen(){
+  var p=voicePlugin(),SR=window.SpeechRecognition||window.webkitSpeechRecognition,lang=state.set.vlang||'en-US';
+  if(listening){if(p&&p.stop)try{p.stop()['catch'](function(){});}catch(e){}return;}
+  if(!p&&!SR){say('Voice works in the installed app. Type your command here instead.',true);return;}
+  listening=true;heard('');$('orb').classList.add('busy');say('Listening',true);duck(true);
+  if(p){p.listen({lang:lang}).then(function(r){listenDone(trim(r&&r.text));})['catch'](function(e){listenDone('',e&&e.message);});return;}
+  var r,got=false;
+  try{r=new SR();}catch(e2){listenDone('','Voice is not available here. Type your command instead.');return;}
+  r.lang=lang;r.interimResults=false;
+  r.onresult=function(e){got=true;listenDone(trim(e.results[0][0].transcript));};
+  r.onerror=function(){if(!got){got=true;listenDone('','I could not hear that. Try again, or type it.');}};
+  r.onend=function(){if(!got){got=true;listenDone('');}};
+  try{r.start();}catch(e3){listenDone('','Voice is not available here. Type your command instead.');}
+}
+$('mic').onclick=listen;$('orb').onclick=listen;
 
 /* ---------- HUD mode, dock, settings ---------- */
 function setHud(on){tog(document.body,'hud',on);if(!on)document.body.classList.remove('mirror');closeSheets();layout(true);if(on)toast('HUD mode. Tap the dial to go back.');}
@@ -1290,13 +1369,15 @@ function setAcc(rgb,keep){var c=car();if(c)c.acc=rgb;state.set.acc=rgb;applyThem
 $('sAcc').onpick=function(v){setAcc(v,true);};
 function openSettings(){
   cwDraw();cwMark();
-  var s=state.set;segSet($('sUnit'),s.unit);segSet($('sSrc'),s.src);segSet($('sLimit'),s.limit);segSet($('sBeep'),+s.beep?1:0);segSet($('sTheme'),s.theme);
+  var s=state.set;segSet($('sUnit'),s.unit);segSet($('sSrc'),s.src);segSet($('sLimit'),s.limit);segSet($('sBeep'),+s.beep?1:0);segSet($('sVlang'),s.vlang||'en-US');segSet($('sTalk'),+s.talk?1:0);segSet($('sTheme'),s.theme);
   $('sPrice').value=s.price||'';$('sCur').value=s.cur||'';renderTripKv();openSheet('shSettings');
 }
 $('sUnit').onpick=function(v){state.set.unit=v;save();buildDial();};
 $('sSrc').onpick=function(v){state.set.src=v;save();};
 $('sLimit').onpick=function(v){state.set.limit=+v;save();updLimitMark();};
 $('sBeep').onpick=function(v){state.set.beep=+v;save();if(+v){lastBeep=0;beep();}};
+$('sVlang').onpick=function(v){state.set.vlang=v;save();};
+$('sTalk').onpick=function(v){state.set.talk=+v;save();if(+v)speak('Spoken replies are on.');};
 $('sTheme').onpick=function(v){state.set.theme=v;save();calcNight();};
 $('sPrice').onchange=function(){state.set.price=Math.max(0,num(this.value,0));save();renderTripKv();};
 $('sCur').onchange=function(){state.set.cur=trim(this.value);save();renderTripKv();};
@@ -1317,7 +1398,7 @@ if(!state.cars.length&&location.hash!=='#demo')setTimeout(function(){editCar(nul
 if(location.hash==='#demo')setDemo(true);
 
 /* hooks for the AI agent and for tests */
-window.DRIVORA={mapUrl:mapUrl,music:function(){return {tracks:tracks,idx:tIdx,src:audio.getAttribute('src'),paused:audio.paused};},hsv2rgb:hsv2rgb,rgb2hs:rgb2hs,command:runCommand,navigate:navigate,live:live,state:state,obd:Obd,obdAttach:obdAttach,obdRx:obdRx,obdDrop:obdDrop,obdBytes:obdBytes,setDemo:setDemo,feed:feed,sunUT:sunUT,version:'0.2.0'};
+window.DRIVORA={setDest:setDest,startNav:startNav,endNav:endNav,listen:listen,mapUrl:mapUrl,music:function(){return {tracks:tracks,idx:tIdx,src:audio.getAttribute('src'),paused:audio.paused};},hsv2rgb:hsv2rgb,rgb2hs:rgb2hs,command:runCommand,navigate:navigate,live:live,state:state,obd:Obd,obdAttach:obdAttach,obdRx:obdRx,obdDrop:obdDrop,obdBytes:obdBytes,setDemo:setDemo,feed:feed,sunUT:sunUT,version:'0.3.0'};
 })();
 </script>
 </body>

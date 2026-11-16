@@ -23,6 +23,7 @@ Those need codes specific to each car model.
 - `www/index.html` - built copy with the font embedded; this is what ships
 - `native/ObdLinkPlugin.java` - Bluetooth / Wi-Fi serial link to the adapter
 - `native/MediaLibPlugin.java` - lists the music stored on the device
+- `native/VoicePlugin.java` - speech recognition and spoken replies for the built-in assistant
 - `native/MainActivity.java` - registers the plugins, keeps the screen on
 - `native/brand/logo-source.png` - app logo; `python3 tools/make-icons.py` turns it into `native/res/` icons and splash screens
 - `tools/android-patch.js` - adds permissions, native code and the signing key to the generated Android project
@@ -36,7 +37,20 @@ After editing `src/index.src.html`: `node tools/build.js`, then commit `www/inde
 
 Tests (need Chrome): `cd tools && npm install && npm test`. Screenshots at head-unit sizes: `node tools/shot.js`.
 
-## Hook for the AI agent
+## Built-in assistant
+
+A small helper for simple driving tasks: tap the mic (or the round face) and speak, or type.
+It understands English, plus basic Sinhala and Singlish phrases.
+
+- "go to Kandy" / "lock destination to Galle" / "mahanuwarata yamu" - locks the destination and shows the route
+- "start" - begins guidance in Google Maps; "cancel navigation" clears it
+- "play music", "pause", "next", "previous", "play <song name>", "shuffle on"
+- "what is my speed", "what time is it", "how far", "fuel", "engine temperature", "battery"
+- "show map", "show trail", "limit 70", "theme red", "reset trip", "hud"
+
+Voice language and spoken replies are in Settings. All logic is in `runCommand()` in `src/index.src.html`.
+
+## Hook for a fuller AI agent
 
 `window.DRIVORA.command("go to Kandy")` runs any assistant command.
 `window.DRIVORA.live` holds current speed, RPM, temperatures and light states.
