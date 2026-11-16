@@ -7,7 +7,7 @@ function must(c,m){if(!c){console.error('PATCH FAILED: '+m);process.exit(1);}}
 must(fs.existsSync(pkgDir),'android project not found - run "npx cap add android" first');
 
 // 1. native sources
-['MainActivity.java','ObdLinkPlugin.java'].forEach(function(f){fs.copyFileSync(path.join(root,'native',f),path.join(pkgDir,f));});
+['MainActivity.java','ObdLinkPlugin.java','MediaLibPlugin.java'].forEach(function(f){fs.copyFileSync(path.join(root,'native',f),path.join(pkgDir,f));});
 
 // 2. manifest permissions
 var mf=path.join(app,'src/main/AndroidManifest.xml'),m=fs.readFileSync(mf,'utf8');
@@ -18,6 +18,8 @@ if(m.indexOf('ACCESS_FINE_LOCATION')<0){
     '    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />',
     '    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />',
     '    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />',
+    '    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />',
+    '    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />',
     '    <uses-feature android:name="android.hardware.location.gps" android:required="false" />',
     '    <uses-feature android:name="android.hardware.bluetooth" android:required="false" />',
     '    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />',
@@ -37,4 +39,15 @@ if(g.indexOf('drivora-debug.keystore')<0){
   g=g.replace(/versionCode \d+/,'versionCode '+(+parts[0]*10000+ +parts[1]*100+ +parts[2])).replace(/versionName "[^"]*"/,'versionName "'+ver+'"');
   fs.writeFileSync(gf,g);
 }
-console.log('android project patched');
+// 4. app icon and splash from the logo (made by tools/make-icons.py); same file names as the template, so nothing else changes
+var resSrc=path.join(root,'native/res'),resDst=path.join(app,'src/main/res'),copied=0;
+fs.readdirSync(resSrc).forEach(function(dir){
+  var d=path.join(resDst,dir);must(fs.existsSync(d),'resource folder missing in template: '+dir);
+  fs.readdirSync(path.join(resSrc,dir)).forEach(function(f){
+    must(fs.existsSync(path.join(d,f)),'template has no '+dir+'/'+f);
+    fs.copyFileSync(path.join(resSrc,dir,f),path.join(d,f));copied++;});
+});
+var bgf=path.join(resDst,'values/ic_launcher_background.xml'),bg=fs.readFileSync(path.join(root,'native/brand/background.txt'),'utf8').trim();
+must(/^#[0-9A-F]{6}$/.test(bg),'bad background colour');
+fs.writeFileSync(bgf,fs.readFileSync(bgf,'utf8').replace(/#[0-9A-Fa-f]{6}/,bg));
+console.log('android project patched ('+copied+' images)');

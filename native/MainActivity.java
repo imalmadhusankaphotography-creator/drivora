@@ -9,6 +9,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(ObdLinkPlugin.class);
+        registerPlugin(MediaLibPlugin.class);
         super.onCreate(savedInstanceState);
         /* a dashboard must never let the screen sleep */
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);

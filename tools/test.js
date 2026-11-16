@@ -100,6 +100,38 @@ function wait(ms){return new Promise(function(r){setTimeout(r,ms);});}
   await p.click('#shSettings [data-close]');
   await p.click('#stObd');await wait(200);await p.screenshot({path:'/tmp/t_obdsheet.png'});
   ok(await p.$eval('#oNoApp',function(e){return !e.classList.contains('hide');}),'OBD sheet explains preview has no Bluetooth');
+  await p.click('#shObd [data-close]');
+  // Google map addresses
+  var mu=await p.evaluate(function(){var D=DRIVORA;D.command('end navigation');D.live.lat=null;D.state.pos=null;var a=D.mapUrl();D.state.pos={lat:6.9271,lon:79.8612};var b=D.mapUrl();D.navigate('Kandy');var c=D.mapUrl();D.live.lat=7.2906;D.live.lon=80.6337;var d=D.mapUrl();D.live.lat=null;return [a,b,c,d];});
+  ok(mu[0]==='','map: no address before a position is known');
+  ok(mu[1]==='https://maps.google.com/maps?q=6.92710,79.86120&z=16&output=embed','map: centres on last known position');
+  ok(mu[2]==='https://maps.google.com/maps?saddr=6.92710,79.86120&daddr=Kandy&output=embed','map: route to destination');
+  ok(mu[3].indexOf('saddr=7.29060,80.63370')>0,'map: live GPS position wins over the saved one');
+  ok(await p.$eval('#gmap',function(e){return !e.classList.contains('hide');}),'map panel visible when online with a position');
+  await p.click('#mapSw');ok(await p.$eval('#gmap',function(e){return e.classList.contains('hide');}),'switch to trail hides the map');await p.click('#mapSw');
+  // music: add files, play, keep after restart
+  var fs=require('fs');function wav(sec){var n=8000*sec,b=Buffer.alloc(44+n,128);b.write('RIFF',0);b.writeUInt32LE(36+n,4);b.write('WAVEfmt ',8);b.writeUInt32LE(16,16);b.writeUInt16LE(1,20);b.writeUInt16LE(1,22);b.writeUInt32LE(8000,24);b.writeUInt32LE(8000,28);b.writeUInt16LE(1,32);b.writeUInt16LE(8,34);b.write('data',36);b.writeUInt32LE(n,40);return b;}
+  fs.writeFileSync('/tmp/Sanda Mithuru.wav',wav(3));fs.writeFileSync('/tmp/Ran Tharu.wav',wav(2));fs.writeFileSync('/tmp/notes.txt','x');
+  await p.click('.dk[data-go="music"]');await wait(200);
+  await (await p.$('#mFiles')).uploadFile('/tmp/Sanda Mithuru.wav','/tmp/Ran Tharu.wav','/tmp/notes.txt');await wait(900);
+  var m1=await p.evaluate(function(){var m=DRIVORA.music();return {n:m.tracks.length,kinds:m.tracks.map(function(t){return t.kind;}).join(','),idx:m.idx,src:(m.src||'').substring(0,5),title:document.getElementById('mTitle').textContent};});
+  ok(m1.n===2&&m1.kinds==='idb,idb','two songs added and stored, text file ignored ('+m1.kinds+')');
+  ok(m1.idx===0&&m1.src==='blob:'&&m1.title==='Sanda Mithuru','first added song is loaded');
+  await p.screenshot({path:'/tmp/t_music.png'});
+  await p.click('#shMusic [data-close]');await p.click('#mNext');await wait(300);
+  ok(await p.$eval('#mTitle',function(e){return e.textContent;})==='Ran Tharu','next song button');
+  await p.evaluate(function(){DRIVORA.command('pause');});
+  await p.reload();await wait(1200);
+  var m2=await p.evaluate(function(){var m=DRIVORA.music();return {n:m.tracks.length,idx:m.idx,src:m.src,title:document.getElementById('mTitle').textContent,sub:document.getElementById('mSub').textContent};});
+  ok(m2.n===2&&m2.idx===1&&m2.title==='Ran Tharu','after restart the list and the current song are still there ('+m2.n+' songs, "'+m2.title+'")');
+  await p.click('#mPlay');await wait(800);
+  var m3=await p.evaluate(function(){var m=DRIVORA.music(),a=document.getElementById('audio');return {src:(m.src||'').substring(0,5),dur:a.duration,err:a.error?a.error.code:0};});
+  ok(m3.src==='blob:'&&Math.abs(m3.dur-2)<0.1&&!m3.err,'after restart the stored song plays again (duration '+m3.dur+' s)');
+  await p.click('.dk[data-go="music"]');await wait(200);await p.type('#mFind','sanda');await wait(200);
+  ok(await p.$$eval('#mList .rowl',function(r){return r.length;})===1,'song search filters the list');
+  await p.click('#mList [data-x]');await wait(300);
+  ok(await p.evaluate(function(){var m=DRIVORA.music();return m.tracks.length===1&&m.tracks[0].name==='Ran Tharu'&&m.idx===0&&JSON.parse(localStorage.getItem('drivora.music.v1')).list.length===1;}),'remove one song keeps the other and the current one');
+  await p.click('#shMusic [data-close]');
   console.log(errs.length?'ERRORS:\n'+errs.join('\n'):'no page errors');
   console.log(fails?fails+' FAILED':'ALL PASSED');
   await b.close();process.exit(fails||errs.length?1:0);

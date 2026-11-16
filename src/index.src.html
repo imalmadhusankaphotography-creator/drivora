@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#02070B">
-<title>DRIVORA</title>
+<title>JARVIS Drive</title>
 <style>
 @font-face{font-family:"Barlow Cond";font-style:normal;font-weight:500;src:url(data:font/woff2;base64,/*FONT_500*/) format("woff2")}
 @font-face{font-family:"Barlow Cond";font-style:italic;font-weight:600;src:url(data:font/woff2;base64,/*FONT_600I*/) format("woff2")}
@@ -26,7 +26,8 @@ body.night #dimmer{opacity:.24}
 
 /* top bar */
 .top{height:5rem;flex:none;display:flex;align-items:center;padding:0 2rem;position:relative}
-.clock{display:flex;align-items:baseline}
+.clock{display:flex;align-items:center}
+.logo{width:3.8rem;height:3.8rem;margin-right:1.2rem;border-radius:.8rem}
 #clk{font-size:3rem;letter-spacing:.02em}
 #date{margin-left:1.4rem;color:var(--dim);font-size:1.7rem}
 .notch{position:absolute;left:36%;right:36%;bottom:.6rem;height:.3rem;border-radius:.3rem;background:linear-gradient(90deg,rgba(var(--accRgb),0),var(--acc),rgba(var(--accRgb),0));opacity:.8}
@@ -38,10 +39,10 @@ body.night #dimmer{opacity:.24}
 
 /* layout */
 .body{flex:1;min-height:0;display:flex;padding:0 1rem 1rem}
-.col{display:flex;flex-direction:column;min-height:0}
-.left,.right{width:30rem;flex:none}
+.col{display:flex;flex-direction:column;min-height:0;min-width:0}
+.left,.right{flex:1 1 30rem;max-width:40rem}
 .left{order:1}.center{order:2}.right{order:3}
-.center{flex:1;min-width:0;margin:0 1rem}
+.center{flex:1.5 1 38rem;margin:0 1rem}
 .card{position:relative;border-radius:1.6rem;border:1px solid rgba(var(--accRgb),.3);
  background:linear-gradient(180deg,rgba(16,34,44,.86),rgba(6,14,20,.9));
  box-shadow:inset 0 1px 0 rgba(255,255,255,.07),0 0 2.4rem rgba(var(--accRgb),.07)}
@@ -148,7 +149,10 @@ body.over #spd{color:var(--warn);text-shadow:0 0 .25em rgba(255,59,78,.5)}
 .banner.go{background:#157a43;color:#d7f7e4}.banner.go b{color:#fff}
 .trail{flex:1;min-height:6rem;position:relative;margin:.8rem 0;border-radius:1rem;overflow:hidden;background:rgba(2,8,12,.6)}
 .trail canvas{position:absolute;left:0;top:0;width:100%;height:100%}
-.trail .hd{position:absolute;left:1rem;bottom:.6rem;font-size:1.4rem;color:var(--dim)}
+.trail iframe{position:absolute;left:0;top:0;width:100%;height:100%;border:0;background:#0b1418}
+.trail .hd{position:absolute;left:.6rem;bottom:.6rem;font-size:1.4rem;color:var(--dim);background:rgba(2,8,12,.78);padding:.2rem .8rem;border-radius:.6rem}
+.trail .hd:empty{display:none}
+.mapsw{position:absolute;right:.6rem;bottom:.6rem;height:3.2rem;padding:0 1rem;border-radius:.7rem;background:rgba(2,8,12,.85);border:1px solid rgba(var(--accRgb),.5);font-size:1.4rem}
 .trail .hd b{color:var(--ink);font-weight:500}
 .irow{display:flex;align-items:center}
 .inp{flex:1;min-width:0;height:4.6rem;border-radius:1rem;border:1px solid rgba(255,255,255,.16);background:rgba(0,0,0,.55);padding:0 1.2rem;font-size:1.8rem;-webkit-user-select:text;user-select:text}
@@ -226,22 +230,29 @@ body.portrait .cw{display:block}body.portrait .cwp{margin:1.2rem 0 0}
 
 /* portrait phones */
 body.portrait .body{flex-direction:column;overflow-y:auto;-webkit-overflow-scrolling:touch;display:block}
-body.portrait .left,body.portrait .right{width:auto;margin-top:1rem}
+body.portrait .left,body.portrait .right{max-width:none;margin-top:1rem}
 body.portrait .center{margin:0}
 body.portrait .dialbox{height:38rem;flex:none}
 body.portrait .veh{height:36rem}
 body.portrait .navc{height:32rem}
 body.portrait .strip{margin:0 .8rem}
 body.portrait .strip .x{display:none}
+body.portrait #stNet,body.portrait #date{display:none}
+/* vertical head units and tablets: everything on one screen */
+body.ptab .body{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:minmax(0,1fr) 50rem;grid-gap:1rem}
+body.ptab .center{grid-column:1/3;grid-row:1;margin:0}
+body.ptab .left{grid-column:1;grid-row:2;max-width:none}
+body.ptab .right{grid-column:2;grid-row:2;max-width:none}
 @media (prefers-reduced-motion:reduce){.orb.busy,.tt.blink{-webkit-animation:none;animation:none}}
 </style>
 </head>
 <body>
 <div id="app">
   <header class="top">
-    <div class="clock"><span id="clk" class="it">--:--</span><span id="date"></span></div>
+    <div class="clock"><img class="logo" alt="JARVIS Drive" src="data:image/png;base64,/*LOGO*/"><span id="clk" class="it">--:--</span><span id="date"></span></div>
     <div class="notch"></div>
     <div class="stat">
+      <span class="pill" id="stNet"><i></i><span>Offline</span></span>
       <button class="pill" id="stGps"><i></i><span>GPS off</span></button>
       <button class="pill" id="stObd"><i></i><span>OBD off</span></button>
     </div>
@@ -302,7 +313,7 @@ body.portrait .strip .x{display:none}
     <div class="col right">
       <section class="card navc grow">
         <div class="banner" id="banner"><span data-ic="nav"></span><div><b id="bTitle">No destination</b><span id="bSub">Type a place below, or ask the assistant</span></div></div>
-        <div class="trail" id="trail"><canvas id="trailCv"></canvas><div class="hd" id="trailHd"></div></div>
+        <div class="trail" id="trail"><canvas id="trailCv"></canvas><iframe id="gmap" class="hide" title="Google map"></iframe><div class="hd" id="trailHd"></div><button class="mapsw" id="mapSw">Show trail</button></div>
         <div class="irow"><input class="inp" id="dest" placeholder="Where to?" autocomplete="off" enterkeyhint="go"><button class="btn pri" id="destGo">Go</button></div>
         <div class="chips" id="chips"></div>
       </section>
@@ -385,8 +396,10 @@ body.portrait .strip .x{display:none}
 
 <!-- Music -->
 <div class="sheet" id="shMusic"><div class="panel">
-  <div class="phead"><h2>Music</h2><button class="btn pri" id="mAdd">Add songs</button><button class="ib" data-close data-ic="close" aria-label="Close"></button></div>
-  <div class="pbody"><input type="file" id="mFiles" accept="audio/*" multiple class="hide"><div id="mList"></div></div>
+  <div class="phead"><h2>Music</h2><button class="btn pri hide" id="mScan">Find device music</button><button class="btn" id="mAdd" style="margin-left:.8rem">Add files</button><button class="ib" data-close data-ic="close" aria-label="Close"></button></div>
+  <div class="pbody"><input type="file" id="mFiles" accept="audio/*" multiple class="hide">
+    <div class="irow hide" id="mTools" style="margin-bottom:1rem"><input class="inp" id="mFind" placeholder="Search songs" autocomplete="off"><button class="btn red" id="mClear">Remove all</button></div>
+    <div id="mList"></div></div>
 </div></div>
 
 <!-- Places -->
@@ -455,12 +468,12 @@ function icon(n){return '<svg viewBox="0 0 24 24" aria-hidden="true">'+(IC[n]||'
 /* ---------- state ---------- */
 var THEMES={cyan:'31,208,240',red:'255,45,70',amber:'255,176,32',white:'226,238,243',green:'60,255,140',purple:'170,110,255',blue:'60,130,255',pink:'255,90,190',orange:'255,130,40',yellow:'255,225,50'};
 var state={v:1,cars:[],cur:null,trip:{dist:0,moving:0,max:0,smooth:0},
-  set:{unit:'kmh',src:'auto',limit:0,beep:1,theme:'auto',price:0,cur:'Rs',obd:null,acc:'cyan'},places:[],recent:[]};
+  set:{unit:'kmh',src:'auto',limit:0,beep:1,theme:'auto',price:0,cur:'Rs',obd:null,acc:'cyan',map:'map'},places:[],recent:[],pos:null};
 var dirty=false;
 function load(){
   try{var raw=localStorage.getItem(KEY);if(!raw)return;var s=JSON.parse(raw),k;
     if(s&&s.v===1){for(k in s.set)if(s.set.hasOwnProperty(k))state.set[k]=s.set[k];
-      state.cars=s.cars||[];state.cur=s.cur;state.trip=s.trip||state.trip;state.places=s.places||[];state.recent=s.recent||[];}
+      state.cars=s.cars||[];state.cur=s.cur;state.trip=s.trip||state.trip;state.places=s.places||[];state.recent=s.recent||[];state.pos=s.pos||null;}
   }catch(e){}
 }
 function save(){dirty=false;try{localStorage.setItem(KEY,JSON.stringify(state));return true;}catch(e){return false;}}
@@ -502,9 +515,9 @@ function layout(force){
   var w=window.innerWidth,h=window.innerHeight,ae=document.activeElement;
   if(!force&&ae&&ae.tagName==='INPUT'&&w===lastW&&h<lastH)return; /* on-screen keyboard: keep the layout */
   lastW=w;lastH=h;
-  var portrait=h>w*1.05;
-  tog(document.body,'portrait',portrait);
-  var rem=portrait?w/45:Math.min(w/102.4,h/60);
+  var tall=h>w*1.05,tab=tall&&(w>=600||w/h>=0.62);
+  tog(document.body,'portrait',tall&&!tab);tog(document.body,'ptab',tab);
+  var rem=tab?Math.min(w/62,h/104):(tall?w/45:Math.min(w/102.4,h/60));
   document.documentElement.style.fontSize=rem+'px';
   var box=$('dialBox'),bw=box.clientWidth,bh=box.clientHeight;
   var dw=Math.min(bw,bh*1.2);if(dw<50)dw=50;
@@ -718,6 +731,7 @@ function startGps(){
     if(v===null)v=0;if(v<1.5)v=0;
     gpsPrev={lat:c.latitude,lon:c.longitude,t:t};
     live.lat=c.latitude;live.lon=c.longitude;
+    if(!state.pos||t-(state.pos.t||0)>60000){state.pos={lat:c.latitude,lon:c.longitude,t:t};dirty=true;}
     if(typeof c.heading==='number'&&!isNaN(c.heading)&&v>3)live.heading=c.heading;
     if(typeof c.altitude==='number')live.alt=c.altitude;
     if(!demoOn)trailAdd(c.latitude,c.longitude);
@@ -966,13 +980,14 @@ function slowTick(){
   /* status pills */
   var g=$('stGps'),gs=live.gps,gt={ok:'GPS ready',search:'Finding GPS',weak:'GPS weak',denied:'GPS blocked',none:'No GPS',off:'GPS off'}[gs];
   g.className='pill'+(gs==='ok'?' on':gs==='search'||gs==='weak'?' wait':gs==='denied'?' bad':'');setTxt2(g,gt);
+  var nt=$('stNet'),on=navigator.onLine!==false;nt.className='pill'+(on?' on':'');setTxt2(nt,on?'Online':'Offline');
   var o=$('stObd'),os=Obd.state;o.className='pill'+(os==='live'?' on':os==='off'?'':' wait');setTxt2(o,os==='live'?'OBD live':os==='off'?'OBD off':'OBD starting');
   var src=activeSrc(),sl=demoOn?'Demo drive':(live.target===null?'Waiting for speed':(src==='obd'?'Speed from the car (OBD)':'Speed from GPS'));
   var extra='';if(c&&c.service>0){var left=c.service-(c.odo||0);extra='<br>'+(left>=0?'Service in <b>'+commas(left)+' km</b>':'<b style="color:var(--warn)">Service overdue '+commas(-left)+' km</b>');}
   var sb=sl+extra;if(shown.srcb!==sb){shown.srcb=sb;$('srcb').innerHTML=sb;}
   var hd=(live.heading!==null?'<b>'+compass(live.heading)+' '+Math.round(live.heading)+'°</b>':'')+(live.alt!==null?' &nbsp; '+Math.round(live.alt)+' m':'');
   if(shown.hd!==hd){shown.hd=hd;$('trailHd').innerHTML=hd;}
-  drawTrail();renderTT();
+  drawTrail();renderTT();mapTick(false);
   if(isNight&&!lightReminded&&live.target!==null&&live.target>10&&live.lights.low===null){lightReminded=true;toast('It is dark outside. Check that your headlights are on.');say('It is dark outside. Check that your headlights are on.');}
   if($('shObd').classList.contains('show'))renderObd();
   if($('shSettings').classList.contains('show'))renderTripKv();
@@ -988,47 +1003,168 @@ function renderTripKv(){
   $('tripKv').innerHTML=h;
 }
 
-/* ---------- music ---------- */
-var audio=$('audio'),tracks=[],tIdx=-1,shuf=false,rep=0;
+/* ---------- music (the list is kept between runs) ---------- */
+var audio=$('audio'),tracks=[],tIdx=-1,shuf=false,rep=0,MKEY='drivora.music.v1',playTok=0,mdb=null,mFilter='',scanAsked=false;
+function mediaPlugin(){var c=window.Capacitor;return(c&&c.Plugins&&c.Plugins.MediaLib)?c.Plugins.MediaLib:null;}
+function dbOpen(cb){
+  if(mdb){cb(mdb);return;}
+  try{var rq=indexedDB.open('drivora',1);
+    rq.onupgradeneeded=function(){rq.result.createObjectStore('songs');};
+    rq.onsuccess=function(){mdb=rq.result;cb(mdb);};rq.onerror=function(){cb(null);};
+  }catch(e){cb(null);}
+}
+function dbPut(key,blob,cb){dbOpen(function(db){
+  var done=false;function fin(ok){if(!done){done=true;cb(ok);}}
+  if(!db){fin(false);return;}
+  try{var tx=db.transaction('songs','readwrite');tx.objectStore('songs').put(blob,key);tx.oncomplete=function(){fin(true);};tx.onerror=function(){fin(false);};tx.onabort=function(){fin(false);};}catch(e){fin(false);}
+});}
+function dbGet(key,cb){dbOpen(function(db){
+  if(!db){cb(null);return;}
+  try{var rq=db.transaction('songs').objectStore('songs').get(key);rq.onsuccess=function(){cb(rq.result||null);};rq.onerror=function(){cb(null);};}catch(e){cb(null);}
+});}
+function dbDel(key){dbOpen(function(db){if(db)try{db.transaction('songs','readwrite').objectStore('songs')['delete'](key);}catch(e){}});}
+function mSave(){
+  var l=[],i,t;for(i=0;i<tracks.length;i++){t=tracks[i];if(t.kind!=='tmp')l.push({id:t.id,name:t.name,artist:t.artist||'',kind:t.kind,uri:t.uri||''});}
+  try{localStorage.setItem(MKEY,JSON.stringify({list:l,cur:(tIdx>=0&&tracks[tIdx])?tracks[tIdx].id:null,shuf:shuf,rep:rep}));}catch(e){}
+}
+function mLoad(){
+  try{var s=JSON.parse(localStorage.getItem(MKEY)||'null'),i;if(!s)return;
+    tracks=s.list||[];shuf=!!s.shuf;rep=s.rep||0;for(i=0;i<tracks.length;i++)if(tracks[i].id===s.cur)tIdx=i;}catch(e){tracks=[];tIdx=-1;}
+}
+function mUrl(t,cb){
+  if(t.url){cb(t.url);return;}
+  if(t.kind==='dev'){t.url=(window.Capacitor&&window.Capacitor.convertFileSrc)?window.Capacitor.convertFileSrc(t.uri):t.uri;cb(t.url);return;}
+  dbGet(t.id,function(b){if(b){t.url=URL.createObjectURL(b);cb(t.url);}else cb(null);});
+}
 function mUpdate(){
-  var t=tracks[tIdx];
-  $('mTitle').textContent=t?t.name:'No music yet';
-  $('mSub').textContent=t?('Song '+(tIdx+1)+' of '+tracks.length):'Add songs from this device';
+  var t=tracks[tIdx],n=tracks.length;
+  $('mTitle').textContent=t?t.name:(n?'Ready to play':'No music yet');
+  $('mSub').textContent=t?(t.artist||('Song '+(tIdx+1)+' of '+n)):(n?n+' song'+(n>1?'s':'')+' in your list':(mediaPlugin()?'Find the songs on this device':'Add songs from this device'));
   $('mPlay').innerHTML=icon(!audio.paused&&t?'pause':'play');
   tog($('mShuf'),'act',shuf);tog($('mShuf'),'dimi',!shuf);tog($('mRep'),'act',rep>0);tog($('mRep'),'dimi',rep===0);
-  mList();
+  if(has($('shMusic'),'show'))mList();
 }
 function mList(){
-  var h='',i;if(!tracks.length)h='<p>No songs yet. Add music files stored on this device or a USB drive.</p>';
-  for(i=0;i<tracks.length;i++)h+='<div class="rowl'+(i===tIdx?' cur':'')+'"><div class="nm"><b>'+esc(tracks[i].name)+'</b></div><button class="btn'+(i===tIdx?' pri':'')+'" data-i="'+i+'">'+(i===tIdx&&!audio.paused?'Playing':'Play')+'</button></div>';
+  var h='',i,n=0,f=mFilter.toLowerCase(),t;
+  tog($('mScan'),'hide',!mediaPlugin());tog($('mTools'),'hide',!tracks.length);
+  if(!tracks.length)h='<p>'+(mediaPlugin()?'No songs yet. Tap Find device music to list every song stored on this device or its USB drive.':'No songs yet. Tap Add files and choose music stored on this device.')+'</p>';
+  for(i=0;i<tracks.length;i++){t=tracks[i];
+    if(f&&(t.name+' '+(t.artist||'')).toLowerCase().indexOf(f)<0)continue;
+    if(++n>300){h+='<p>Showing the first 300 songs. Search to find the rest.</p>';break;}
+    h+='<div class="rowl'+(i===tIdx?' cur':'')+'"><div class="nm"><b>'+esc(t.name)+'</b><span>'+esc(t.artist||(t.kind==='tmp'?'Not stored. Gone when the app closes.':''))+'</span></div><button class="btn'+(i===tIdx?' pri':'')+'" data-i="'+i+'">'+(i===tIdx&&!audio.paused?'Playing':'Play')+'</button><button class="btn ghost" data-x="'+i+'">Remove</button></div>';}
+  if(tracks.length&&!n)h='<p>No song matches that search.</p>';
   $('mList').innerHTML=h;
 }
-function mPlayAt(i){if(!tracks.length)return;tIdx=(i+tracks.length)%tracks.length;audio.src=tracks[tIdx].url;var p=audio.play();if(p&&p['catch'])p['catch'](function(){});mUpdate();}
-function mToggle(){if(!tracks.length){openSheet('shMusic');return;}if(tIdx<0){mPlayAt(0);return;}if(audio.paused){var p=audio.play();if(p&&p['catch'])p['catch'](function(){});}else audio.pause();}
-function mNext(auto){if(!tracks.length)return;if(auto&&rep===2){mPlayAt(tIdx);return;}
-  if(shuf&&tracks.length>1){var n;do{n=Math.floor(Math.random()*tracks.length);}while(n===tIdx);mPlayAt(n);return;}
-  if(auto&&rep===0&&tIdx===tracks.length-1){audio.pause();mUpdate();return;}mPlayAt(tIdx+1);}
-function mPrev(){if(!tracks.length)return;if(audio.currentTime>4){audio.currentTime=0;return;}mPlayAt(tIdx-1);}
+function mStart(){var p=audio.play();if(p&&p['catch'])p['catch'](function(){});}
+function mPlayAt(i){
+  var n=tracks.length;if(!n)return;
+  tIdx=((i%n)+n)%n;var t=tracks[tIdx],my=++playTok;mUpdate();mSave();
+  mUrl(t,function(u){
+    if(my!==playTok)return;
+    if(!u){toast('That song is no longer stored. Remove it and add it again.');return;}
+    audio.src=u;mStart();mSession();
+  });
+}
+function mLoaded(){return !!audio.getAttribute('src');}
+function mToggle(){if(!tracks.length){openMusic();return;}if(tIdx<0||!mLoaded()){mPlayAt(tIdx<0?0:tIdx);return;}if(audio.paused)mStart();else audio.pause();}
+function mNext(auto){
+  var n=tracks.length;if(!n)return;
+  if(auto&&rep===2){mPlayAt(tIdx);return;}
+  if(shuf&&n>1){var r;do{r=Math.floor(Math.random()*n);}while(r===tIdx);mPlayAt(r);return;}
+  if(auto&&rep===0&&tIdx===n-1){audio.pause();mUpdate();return;}
+  mPlayAt(tIdx+1);
+}
+function mPrev(){if(!tracks.length)return;if(mLoaded()&&audio.currentTime>4){audio.currentTime=0;return;}mPlayAt(tIdx-1);}
+function mStop(){playTok++;audio.pause();audio.removeAttribute('src');try{audio.load();}catch(e){}$('mFill').style.width='0%';$('mCur').textContent='0:00';$('mDur').textContent='0:00';}
+function mRemove(i){
+  var t=tracks[i];if(!t)return;
+  if(t.kind==='idb')dbDel(t.id);
+  if(t.url&&t.kind!=='dev')try{URL.revokeObjectURL(t.url);}catch(e){}
+  tracks.splice(i,1);
+  if(i===tIdx){mStop();tIdx=tracks.length?Math.min(i,tracks.length-1):-1;}else if(i<tIdx)tIdx--;
+  mSave();mUpdate();
+}
+function mSession(){
+  try{var t=tracks[tIdx];if(t&&('mediaSession' in navigator)&&window.MediaMetadata)navigator.mediaSession.metadata=new window.MediaMetadata({title:t.name,artist:t.artist||'',album:'JARVIS Drive'});}catch(e){}
+}
+try{if('mediaSession' in navigator){ /* steering-wheel and headset buttons */
+  navigator.mediaSession.setActionHandler('play',function(){mToggle();});navigator.mediaSession.setActionHandler('pause',function(){audio.pause();});
+  navigator.mediaSession.setActionHandler('nexttrack',function(){mNext(false);});navigator.mediaSession.setActionHandler('previoustrack',function(){mPrev();});
+}}catch(e){}
+function mScan(){
+  var p=mediaPlugin();if(!p)return;
+  toast('Looking for music on this device');
+  p.scan().then(function(r){
+    var l=(r&&r.tracks)||[],have={},i,n=0;
+    for(i=0;i<tracks.length;i++)if(tracks[i].kind==='dev')have[tracks[i].uri]=1;
+    for(i=0;i<l.length;i++)if(!have[l[i].uri]){tracks.push({id:'d'+l[i].id,name:l[i].title||'Unknown song',artist:l[i].artist||'',kind:'dev',uri:l[i].uri});n++;}
+    mSave();mUpdate();mList();
+    toast(!l.length?'No music was found on this device':(n?n+' song'+(n>1?'s':'')+' added to your list':'Your list already has every song on this device'));
+  })['catch'](function(e){toast((e&&e.message)||'Could not read the music on this device');});
+}
+function openMusic(){mList();openSheet('shMusic');if(!tracks.length&&mediaPlugin()&&!scanAsked){scanAsked=true;mScan();}}
 $('mPlay').onclick=mToggle;$('mNext').onclick=function(){mNext(false);};$('mPrev').onclick=mPrev;
-$('mShuf').onclick=function(){shuf=!shuf;mUpdate();toast(shuf?'Shuffle on':'Shuffle off');};
-$('mRep').onclick=function(){rep=(rep+1)%3;mUpdate();toast(['Repeat off','Repeat all songs','Repeat this song'][rep]);};
+$('mShuf').onclick=function(){shuf=!shuf;mSave();mUpdate();toast(shuf?'Shuffle on':'Shuffle off');};
+$('mRep').onclick=function(){rep=(rep+1)%3;mSave();mUpdate();toast(['Repeat off','Repeat all songs','Repeat this song'][rep]);};
+$('mScan').onclick=mScan;
 $('mAdd').onclick=function(){$('mFiles').click();};
+$('mFind').oninput=function(){mFilter=trim(this.value);mList();};
+$('mClear').onclick=function(){confirmBar('Remove every song from the list?','Remove all',function(){
+  var i;for(i=0;i<tracks.length;i++)if(tracks[i].kind==='idb')dbDel(tracks[i].id);
+  tracks=[];tIdx=-1;mStop();mSave();mUpdate();mList();toast('Music list cleared');});};
 $('mFiles').onchange=function(){
-  var f=this.files,i,n=0;for(i=0;i<f.length;i++){if(/^audio\//.test(f[i].type)||/\.(mp3|m4a|aac|ogg|oga|opus|wav|flac|wma)$/i.test(f[i].name)){tracks.push({name:f[i].name.replace(/\.[^.]+$/,''),url:URL.createObjectURL(f[i])});n++;}}
-  this.value='';toast(n?n+' song'+(n>1?'s':'')+' added':'No music files were chosen');if(n&&tIdx<0)mPlayAt(0);else mUpdate();
+  var f=this.files,list=[],i;
+  for(i=0;i<f.length;i++)if(/^audio\//.test(f[i].type)||/\.(mp3|m4a|aac|ogg|oga|opus|wav|flac|wma)$/i.test(f[i].name))list.push(f[i]);
+  this.value='';
+  if(!list.length){toast('No music files were chosen');return;}
+  var left=list.length,lost=0,first=tracks.length,stamp=Date.now();
+  for(i=0;i<list.length;i++)(function(file,k){
+    var t={id:'f'+stamp+'_'+k,name:file.name.replace(/\.[^.]+$/,''),artist:'',kind:'idb',url:URL.createObjectURL(file)};
+    tracks.push(t);
+    dbPut(t.id,file,function(ok){
+      if(!ok){t.kind='tmp';lost++;}
+      if(--left===0){mSave();mUpdate();mList();
+        toast(lost?((list.length-lost)+' saved. '+lost+' could not be stored, storage is full.'):(list.length+' song'+(list.length>1?'s':'')+' added to your list'));}
+    });
+  })(list[i],i);
+  mUpdate();mList();if(!mLoaded())mPlayAt(first);
 };
-$('mList').onclick=function(e){var i=e.target.getAttribute('data-i');if(i!==null&&i!=='')mPlayAt(+i);};
+$('mList').onclick=function(e){var i=e.target.getAttribute('data-i'),x=e.target.getAttribute('data-x');if(i!==null&&i!=='')mPlayAt(+i);else if(x!==null&&x!=='')mRemove(+x);};
 audio.onplay=audio.onpause=mUpdate;audio.onended=function(){mNext(true);};
-audio.onerror=function(){if(tracks.length&&tIdx>=0)toast('This song could not be played');};
-audio.ontimeupdate=function(){var d=audio.duration||0;$('mFill').style.width=(d?audio.currentTime/d*100:0)+'%';$('mCur').textContent=fmtTime(audio.currentTime);$('mDur').textContent=fmtTime(d);};
-$('mBar').onclick=function(e){var r=this.getBoundingClientRect();if(audio.duration)audio.currentTime=Math.max(0,Math.min(1,(e.clientX-r.left)/r.width))*audio.duration;};
+audio.onerror=function(){if(mLoaded()&&tIdx>=0)toast('This song could not be played');};
+audio.ontimeupdate=function(){var d=audio.duration||0;if(!isFinite(d))d=0;$('mFill').style.width=(d?audio.currentTime/d*100:0)+'%';$('mCur').textContent=fmtTime(audio.currentTime);$('mDur').textContent=fmtTime(d);};
+$('mBar').onclick=function(e){var r=this.getBoundingClientRect(),d=audio.duration;if(d&&isFinite(d))audio.currentTime=Math.max(0,Math.min(1,(e.clientX-r.left)/r.width))*d;};
 
-/* ---------- navigation ---------- */
+/* ---------- navigation + Google map ---------- */
+var navDest='',mapUrlNow='',mapDest=null,mapAt=0,mapPos=null;
+function mapUrl(){
+  var p=live.lat!==null?live:state.pos,ll=p?(p.lat.toFixed(5)+','+p.lon.toFixed(5)):'',b='https://maps.google.com/maps?';
+  if(navDest&&ll)return b+'saddr='+ll+'&daddr='+encodeURIComponent(navDest)+'&output=embed';
+  if(navDest)return b+'q='+encodeURIComponent(navDest)+'&z=13&output=embed';
+  if(ll)return b+'q='+ll+'&z=16&output=embed';
+  return '';
+}
+function mapTick(force){
+  var f=$('gmap'),want=state.set.map!=='trail'&&navigator.onLine!==false,u=want?mapUrl():'',now=Date.now();
+  tog(f,'hide',!u);tog($('trailCv'),'hide',!!u);
+  $('mapSw').textContent=state.set.map==='trail'?'Show map':'Show trail';
+  if(!u){if(mapUrlNow){mapUrlNow='';f.removeAttribute('src');}return;}
+  var p=live.lat!==null?live:null,moved=(p&&mapPos)?hav(mapPos.lat,mapPos.lon,p.lat,p.lon):0;
+  if(force||!mapUrlNow||mapDest!==navDest||(p&&!mapPos)||(moved>300&&now-mapAt>45000)){
+    mapUrlNow=u;mapDest=navDest;mapAt=now;mapPos=p?{lat:p.lat,lon:p.lon}:null;
+    if(!window.DRIVORA_TEST)f.src=u;
+  }
+}
+$('mapSw').onclick=function(){state.set.map=state.set.map==='trail'?'map':'trail';save();mapTick(true);trailDirty=true;drawTrail();
+  if(state.set.map==='map'&&!mapUrlNow)toast(navigator.onLine===false?'The map needs an internet connection':'The map appears once GPS finds your position');};
+$('banner').onclick=function(){if(!navDest)return;confirmBar('End navigation to '+navDest+'?','End',function(){navDest='';$('banner').className='banner';$('bTitle').textContent='No destination';$('bSub').textContent='Type a place below, or ask the assistant';mapTick(true);say('Navigation ended.');});};
+window.addEventListener('online',function(){mapTick(true);});window.addEventListener('offline',function(){mapTick(true);});
+
 function navigate(q){
   q=trim(q);if(!q)return;
   var i;for(i=state.recent.length-1;i>=0;i--)if(state.recent[i].toLowerCase()===q.toLowerCase())state.recent.splice(i,1);
   state.recent.unshift(q);if(state.recent.length>6)state.recent.length=6;save();
-  $('banner').className='banner go';$('bTitle').textContent=q;$('bSub').textContent='Guidance is running in Google Maps';
+  navDest=q;$('banner').className='banner go';$('bTitle').textContent=q;$('bSub').textContent='Guidance runs in Google Maps. Tap here to end.';mapTick(true);
   var u='https://www.google.com/maps/dir/?api=1&destination='+encodeURIComponent(q)+'&travelmode=driving&dir_action=navigate';
   say('Starting navigation to '+q+'.');
   if(window.DRIVORA_TEST){window.DRIVORA_TEST.push(u);return;}
@@ -1060,7 +1196,7 @@ function runCommand(raw){
     for(i=0;i<state.places.length;i++)if(state.places[i].n.toLowerCase()===trim(m[1]).toLowerCase()){navigate(state.places[i].q);return 'nav';}
     navigate(m[1]);return 'nav';}
   for(i=0;i<state.places.length;i++)if(state.places[i].n.toLowerCase()===l){navigate(state.places[i].q);return 'nav';}
-  if(/^(play|resume)( music| song)?$/.test(l)){if(!tracks.length){say('There is no music yet. Add songs first.');openSheet('shMusic');}else{if(audio.paused)mToggle();say('Playing music.');}return 'play';}
+  if(/^(play|resume)( music| song)?$/.test(l)){if(!tracks.length){say('There is no music yet. Add songs first.');openMusic();}else{if(audio.paused)mToggle();say('Playing music.');}return 'play';}
   if(/^(pause|stop)( music| song)?$/.test(l)){audio.pause();say('Music paused.');return 'pause';}
   if(/^(next|skip)( song| track)?$/.test(l)){mNext(false);say('Next song.');return 'next';}
   if(/^(prev|previous|back|last)( song| track)?$/.test(l)){mPrev();say('Previous song.');return 'prev';}
@@ -1075,6 +1211,7 @@ function runCommand(raw){
   if(/^(stop demo|end demo)$/.test(l)){setDemo(false);say('Demo drive stopped.');return 'demo';}
   if(/^(how fast|speed|what is my speed)$/.test(l)){say(live.target===null?'I have no speed reading yet.':'You are doing '+Math.round(live.disp)+' '+(mph()?'miles':'kilometres')+' per hour.');return 'speed';}
   if(/^(trip|how far)$/.test(l)){say('This trip is '+state.trip.dist.toFixed(1)+' kilometres so far.');return 'tripq';}
+  if(/^(end|stop|cancel) (navigation|route|trip guidance)$/.test(l)){navDest='';$('banner').className='banner';$('bTitle').textContent='No destination';$('bSub').textContent='Type a place below, or ask the assistant';mapTick(true);say('Navigation ended.');return 'navend';}
   if(/^(help|what can you do)$/.test(l)){say('Try: go to Kandy, play, next, limit 70, theme red, reset trip, HUD.');return 'help';}
   say('Did you mean a place? Confirm to start navigation.');
   confirmBar('Navigate to "'+t+'"?','Start',function(){navigate(t);});
@@ -1105,7 +1242,7 @@ function dock(){
   var g=this.getAttribute('data-go');
   if(g==='home')closeSheets();
   else if(g==='places'){renderPlaces();openSheet('shPlaces');}
-  else if(g==='music'){mList();openSheet('shMusic');}
+  else if(g==='music')openMusic();
   else if(g==='garage'){renderGarage();openSheet('shGarage');}
   else if(g==='hud')setHud(true);
   else if(g==='settings'){openSettings();}
@@ -1166,7 +1303,7 @@ $('sCur').onchange=function(){state.set.cur=trim(this.value);save();renderTripKv
 $('sReset').onclick=function(){confirmBar('Reset this trip to zero?','Reset',function(){resetTrip();renderTripKv();});};
 
 /* ---------- start ---------- */
-load();
+load();mLoad();
 layout(true);renderCar();buildDial();renderPlaces();mUpdate();calcNight();slowTick();
 setInterval(slowTick,1000);setInterval(calcNight,60000);
 requestAnimationFrame(frame);
@@ -1180,7 +1317,7 @@ if(!state.cars.length&&location.hash!=='#demo')setTimeout(function(){editCar(nul
 if(location.hash==='#demo')setDemo(true);
 
 /* hooks for the AI agent and for tests */
-window.DRIVORA={hsv2rgb:hsv2rgb,rgb2hs:rgb2hs,command:runCommand,navigate:navigate,live:live,state:state,obd:Obd,obdAttach:obdAttach,obdRx:obdRx,obdDrop:obdDrop,obdBytes:obdBytes,setDemo:setDemo,feed:feed,sunUT:sunUT,version:'0.1.0'};
+window.DRIVORA={mapUrl:mapUrl,music:function(){return {tracks:tracks,idx:tIdx,src:audio.getAttribute('src'),paused:audio.paused};},hsv2rgb:hsv2rgb,rgb2hs:rgb2hs,command:runCommand,navigate:navigate,live:live,state:state,obd:Obd,obdAttach:obdAttach,obdRx:obdRx,obdDrop:obdDrop,obdBytes:obdBytes,setDemo:setDemo,feed:feed,sunUT:sunUT,version:'0.2.0'};
 })();
 </script>
 </body>
