@@ -1,0 +1,8 @@
+{
+  "appId": "com.imal.drivora",
+  "appName": "DRIVORA",
+  "webDir": "www",
+  "android": {
+    "backgroundColor": "#02070B"
+  }
+}

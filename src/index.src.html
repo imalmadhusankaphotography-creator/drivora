@@ -1,0 +1,1187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#02070B">
+<title>DRIVORA</title>
+<style>
+@font-face{font-family:"Barlow Cond";font-style:normal;font-weight:500;src:url(data:font/woff2;base64,/*FONT_500*/) format("woff2")}
+@font-face{font-family:"Barlow Cond";font-style:italic;font-weight:600;src:url(data:font/woff2;base64,/*FONT_600I*/) format("woff2")}
+:root{--accRgb:31,208,240;--acc:rgb(31,208,240);--amb:rgb(31,208,240);--ink:#EAF6FA;--dim:#7F98A4;--ok:#2EE66B;--warn:#FF3B4E;--amber:#FFB020}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;margin:0;background:#02070B;color:var(--ink);overflow:hidden}
+body{font-family:"Barlow Cond","sans-serif-condensed","Roboto Condensed","Arial Narrow",sans-serif;font-weight:500;font-size:1.7rem;line-height:1.2;-webkit-user-select:none;user-select:none}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer;background:none;border:0;padding:0;margin:0}
+button:focus,input:focus{outline:none}
+button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.it{font-style:italic;font-weight:600}
+svg{display:block}
+#app{position:absolute;left:0;top:0;right:0;bottom:0;display:flex;flex-direction:column;
+ background:radial-gradient(ellipse at 50% -12%,rgba(255,150,100,.16),rgba(255,150,100,0) 55%),radial-gradient(ellipse at 50% 62%,rgba(var(--accRgb),.13),rgba(0,0,0,0) 62%),#02070B}
+body.mirror #app{-webkit-transform:scaleY(-1);transform:scaleY(-1)}
+#dimmer{position:fixed;left:0;top:0;right:0;bottom:0;background:#000;opacity:0;pointer-events:none;transition:opacity 1.2s;z-index:40}
+body.night #dimmer{opacity:.24}
+
+/* top bar */
+.top{height:5rem;flex:none;display:flex;align-items:center;padding:0 2rem;position:relative}
+.clock{display:flex;align-items:baseline}
+#clk{font-size:3rem;letter-spacing:.02em}
+#date{margin-left:1.4rem;color:var(--dim);font-size:1.7rem}
+.notch{position:absolute;left:36%;right:36%;bottom:.6rem;height:.3rem;border-radius:.3rem;background:linear-gradient(90deg,rgba(var(--accRgb),0),var(--acc),rgba(var(--accRgb),0));opacity:.8}
+.stat{margin-left:auto;display:flex;align-items:center}
+.pill{height:3.4rem;padding:0 1.2rem;margin-left:.8rem;border-radius:1.7rem;border:1px solid rgba(var(--accRgb),.3);background:rgba(8,18,24,.8);display:flex;align-items:center;font-size:1.5rem;color:var(--dim)}
+.pill i{width:.9rem;height:.9rem;border-radius:50%;background:#4a5a63;margin-right:.7rem;flex:none}
+.pill.on{color:var(--ink)}.pill.on i{background:var(--ok);box-shadow:0 0 .8rem var(--ok)}
+.pill.wait i{background:var(--amber)}.pill.bad i{background:var(--warn)}
+
+/* layout */
+.body{flex:1;min-height:0;display:flex;padding:0 1rem 1rem}
+.col{display:flex;flex-direction:column;min-height:0}
+.left,.right{width:30rem;flex:none}
+.left{order:1}.center{order:2}.right{order:3}
+.center{flex:1;min-width:0;margin:0 1rem}
+.card{position:relative;border-radius:1.6rem;border:1px solid rgba(var(--accRgb),.3);
+ background:linear-gradient(180deg,rgba(16,34,44,.86),rgba(6,14,20,.9));
+ box-shadow:inset 0 1px 0 rgba(255,255,255,.07),0 0 2.4rem rgba(var(--accRgb),.07)}
+.grow{flex:1;min-height:0}
+.gap{margin-top:1rem}
+.lbl{color:var(--dim);font-size:1.4rem}
+
+/* vehicle card */
+.veh{display:flex;flex-direction:column;padding:1.2rem}
+.vhead{display:flex;align-items:center;text-align:left;width:100%}
+.vhead svg{width:3.4rem;height:3.4rem;margin-right:1rem;color:var(--ink)}
+.vname{font-size:2.3rem;line-height:1.05;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:20rem}
+.vname:after{content:"";display:inline-block;margin-left:.8rem;border:.5rem solid transparent;border-top-color:var(--ink);border-bottom:0;vertical-align:middle}
+.vphoto{flex:1;min-height:9rem;position:relative;margin:.8rem 0;border-radius:1.1rem;overflow:hidden;background:radial-gradient(ellipse at 50% 100%,rgba(var(--accRgb),.2),rgba(0,0,0,0) 70%)}
+.vphoto img{position:absolute;left:0;top:0;width:100%;height:100%;object-fit:cover}
+.vphoto .art{position:absolute;left:50%;top:50%;width:76%;max-width:22rem;-webkit-transform:translate(-50%,-50%);transform:translate(-50%,-50%)}
+.vphoto .art svg{width:100%;height:auto}
+.vphoto .ar{position:absolute;top:0;bottom:0;width:4.4rem;display:flex;align-items:center;justify-content:center;color:var(--ink);z-index:2}
+.vphoto .ar svg{width:2.6rem;height:2.6rem}
+.vphoto .ar.l{left:0}.vphoto .ar.r{right:0}
+.vphoto .plate{position:absolute;left:1rem;bottom:.8rem;font-size:1.4rem;padding:.2rem .8rem;border-radius:.5rem;background:rgba(0,0,0,.6);z-index:2}
+.vempty{position:absolute;left:0;top:0;right:0;bottom:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 2rem;color:var(--dim)}
+.tts{display:flex;flex-wrap:wrap;margin:0 -.4rem -.4rem}
+.tt{width:calc(25% - .8rem);margin:.4rem;height:6rem;border-radius:1rem;border:1px solid rgba(255,255,255,.1);background:rgba(2,8,12,.7);display:flex;flex-direction:column;align-items:center;justify-content:center;color:#51636d}
+.tt svg{width:3rem;height:3rem}
+.tt span{font-size:1.25rem;margin-top:.1rem;white-space:nowrap}
+.tt.off{color:#9fb3bd}
+.tt.on{color:var(--ok);border-color:rgba(46,230,107,.45);box-shadow:inset 0 0 1.4rem rgba(46,230,107,.14)}
+.tt.blue{color:#4aa8ff;border-color:rgba(74,168,255,.5)}
+.tt.warn{color:var(--warn);border-color:rgba(255,59,78,.6);box-shadow:inset 0 0 1.4rem rgba(255,59,78,.18)}
+.tt.blink{-webkit-animation:blink .8s steps(1) infinite;animation:blink .8s steps(1) infinite}
+@-webkit-keyframes blink{50%{opacity:.3}}@keyframes blink{50%{opacity:.3}}
+
+/* music card */
+.music{height:17rem;flex:none;padding:1.2rem;display:flex;flex-direction:column}
+.mrow{display:flex;align-items:center;flex:1;min-height:0}
+.art2{width:7.6rem;height:7.6rem;border-radius:1rem;flex:none;background:linear-gradient(135deg,#7b2ff7,#f107a3 55%,#ff9a3c);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.9)}
+.art2 svg{width:3.6rem;height:3.6rem}
+.minfo{flex:1;min-width:0;margin-left:1.2rem}
+#mTitle{font-size:2.1rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#mSub{color:var(--dim);font-size:1.5rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar{height:2.4rem;display:flex;align-items:center;margin-top:.3rem}
+.bar .tr{flex:1;height:.4rem;border-radius:.4rem;background:rgba(255,255,255,.14);position:relative}
+.bar .fl{position:absolute;left:0;top:0;bottom:0;border-radius:.4rem;background:var(--acc);width:0}
+.times{display:flex;justify-content:space-between;color:var(--dim);font-size:1.3rem}
+.mctl{display:flex;align-items:center;justify-content:space-between;height:5.6rem;flex:none}
+.ib{width:5rem;height:5rem;border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--ink)}
+.ib svg{width:2.8rem;height:2.8rem}
+.ib.sm svg{width:2.3rem;height:2.3rem}
+.ib.dimi{color:var(--dim)}.ib.act{color:var(--acc)}
+.ib.big{width:5.6rem;height:5.6rem;border:2px solid var(--acc);color:var(--acc);box-shadow:0 0 1.4rem rgba(var(--accRgb),.35)}
+.ib:active,.btn:active,.tt:active,.dk:active,.chip:active{-webkit-transform:scale(.94);transform:scale(.94)}
+
+/* centre */
+.dialbox{flex:1;min-height:0;position:relative;display:flex;align-items:center;justify-content:center}
+.dial{position:relative;font-size:8px}
+.dial>svg{width:100%;height:100%;overflow:visible}
+.d-track{fill:none;stroke:rgba(255,255,255,.1);stroke-width:7}
+.d-ring{fill:none;stroke:rgba(var(--accRgb),.35);stroke-width:1}
+.d-red{fill:none;stroke:var(--warn);stroke-width:3}
+.d-glow{fill:none;stroke:var(--amb);stroke-width:20;opacity:.18;transition:stroke .7s}
+.d-fill{fill:none;stroke:var(--amb);stroke-width:7;transition:stroke .7s}
+.d-tick{stroke:rgba(234,246,250,.75);stroke-width:1.6}
+.d-tick.mn{stroke:rgba(234,246,250,.35);stroke-width:1}
+.d-num{fill:var(--ink);font-size:15px;font-style:italic;font-weight:600;text-anchor:middle}
+.d-lim{fill:var(--warn)}
+.g-track{fill:none;stroke:rgba(255,255,255,.1);stroke-width:8;stroke-linecap:round}
+.g-fill{fill:none;stroke:#BFE9F5;stroke-width:8;stroke-linecap:round;transition:stroke .5s}
+.g-fill.hot{stroke:var(--warn)}.g-fill.low{stroke:var(--amber)}
+.g-t{fill:var(--dim);font-size:13px;text-anchor:middle;font-weight:500}
+.g-v{fill:var(--ink);font-size:14px;text-anchor:middle;font-style:italic;font-weight:600}
+.lane{stroke:var(--acc);stroke-width:3;stroke-dasharray:14 12;opacity:.85}
+.edge{stroke:rgba(var(--accRgb),.25);stroke-width:1}
+.tl{fill:#7a1420}.braking .tl{fill:#ff3147}
+.spd{position:absolute;left:0;right:0;top:25%;text-align:center;pointer-events:none}
+#spd{font-size:10em;line-height:.9;display:block;letter-spacing:-.01em;text-shadow:0 0 .25em rgba(var(--accRgb),.35)}
+body.over #spd{color:var(--warn);text-shadow:0 0 .25em rgba(255,59,78,.5)}
+#unit{font-size:2.1em;color:var(--ink);display:block;margin-top:.1em}
+#rpm{font-size:1.6em;color:var(--dim);display:block;height:1.2em}
+.limit{position:absolute;left:.6rem;top:.4rem;width:6rem;height:6rem;border-radius:50%;border:.5rem solid #5b6b74;color:var(--dim);display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(2,8,12,.7);line-height:1}
+.limit b{font-size:2.3rem;font-style:italic;font-weight:600}
+.limit small{font-size:1.1rem}
+.limit.set{border-color:var(--warn);color:var(--ink)}
+.srcb{position:absolute;right:.6rem;top:.8rem;font-size:1.3rem;color:var(--dim);text-align:right;line-height:1.3}
+.srcb b{color:var(--ink);font-weight:500}
+.strip{height:4.8rem;flex:none;display:flex;align-items:center;justify-content:center;border-radius:1.2rem;border:1px solid rgba(var(--accRgb),.3);background:rgba(6,14,20,.85);margin:0 1.5rem;-webkit-transform:skewX(-10deg);transform:skewX(-10deg)}
+.strip>div{-webkit-transform:skewX(10deg);transform:skewX(10deg);display:flex;align-items:baseline;padding:0 1.3rem;white-space:nowrap}
+.strip>div+div{border-left:1px solid rgba(255,255,255,.18)}
+.strip .lbl{margin-right:.7rem}
+.strip b{font-size:2.2rem;font-style:italic;font-weight:600}
+.strip em{font-style:normal;color:var(--dim);font-size:1.4rem;margin-left:.3rem}
+.dock{height:6.4rem;flex:none;margin-top:1rem;display:flex;align-items:center;justify-content:space-around;padding:0 1rem;border-radius:1.6rem;border:1px solid rgba(var(--accRgb),.3);background:rgba(6,14,20,.85)}
+.dk{width:5.4rem;height:5rem;border-radius:1.1rem;display:flex;align-items:center;justify-content:center;color:var(--ink)}
+.dk svg{width:3rem;height:3rem}
+.dk.act{background:linear-gradient(180deg,rgba(var(--accRgb),.45),rgba(var(--accRgb),.12));box-shadow:0 0 1.6rem rgba(var(--accRgb),.35)}
+
+/* nav card */
+.navc{display:flex;flex-direction:column;padding:1.2rem}
+.banner{height:5.6rem;flex:none;border-radius:1rem;display:flex;align-items:center;padding:0 1.2rem;background:rgba(255,255,255,.05);color:var(--dim)}
+.banner svg{width:3rem;height:3rem;margin-right:1rem;flex:none}
+.banner div{min-width:0}
+.banner b{display:block;font-size:2.1rem;font-style:italic;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.banner span{font-size:1.4rem;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.banner.go{background:#157a43;color:#d7f7e4}.banner.go b{color:#fff}
+.trail{flex:1;min-height:6rem;position:relative;margin:.8rem 0;border-radius:1rem;overflow:hidden;background:rgba(2,8,12,.6)}
+.trail canvas{position:absolute;left:0;top:0;width:100%;height:100%}
+.trail .hd{position:absolute;left:1rem;bottom:.6rem;font-size:1.4rem;color:var(--dim)}
+.trail .hd b{color:var(--ink);font-weight:500}
+.irow{display:flex;align-items:center}
+.inp{flex:1;min-width:0;height:4.6rem;border-radius:1rem;border:1px solid rgba(255,255,255,.16);background:rgba(0,0,0,.55);padding:0 1.2rem;font-size:1.8rem;-webkit-user-select:text;user-select:text}
+.inp:focus{border-color:var(--acc)}
+.inp::-webkit-input-placeholder{color:#5f747e}
+.btn{height:4.6rem;padding:0 1.5rem;border-radius:1rem;border:1px solid rgba(var(--accRgb),.45);background:rgba(var(--accRgb),.12);font-size:1.7rem;white-space:nowrap;flex:none}
+.btn.pri{background:var(--acc);color:#021016;border-color:var(--acc);font-weight:600;font-style:italic}
+.btn.red{border-color:rgba(255,59,78,.6);background:rgba(255,59,78,.12);color:#ff8d98}
+.btn.ghost{border-color:rgba(255,255,255,.18);background:none}
+.irow .btn{margin-left:.8rem}
+.chips{display:flex;margin-top:.8rem;overflow:hidden;height:3.8rem;flex:none}
+.chip{height:3.8rem;padding:0 1.3rem;margin-right:.7rem;border-radius:.8rem;border:1px solid rgba(255,255,255,.18);font-size:1.5rem;white-space:nowrap;-webkit-transform:skewX(-10deg);transform:skewX(-10deg);flex:none;max-width:11rem;overflow:hidden;text-overflow:ellipsis}
+
+/* assistant */
+.jar{height:17rem;flex:none;padding:1.2rem;display:flex;flex-direction:column}
+.jtop{display:flex;align-items:center;flex:1;min-height:0}
+.orb{width:7.2rem;height:7.2rem;border-radius:50%;flex:none;position:relative;background:radial-gradient(circle at 50% 40%,#0c3a55,#041018 70%);border:2px solid var(--acc);box-shadow:0 0 2rem rgba(var(--accRgb),.5),inset 0 0 1.6rem rgba(var(--accRgb),.4)}
+.orb:before,.orb:after{content:"";position:absolute;top:38%;width:.9rem;height:1.2rem;border-radius:50%;background:var(--acc)}
+.orb:before{left:30%}.orb:after{right:30%}
+.orb.busy{-webkit-animation:pulse 1s ease-in-out infinite;animation:pulse 1s ease-in-out infinite}
+@-webkit-keyframes pulse{50%{box-shadow:0 0 3.4rem rgba(var(--accRgb),.9),inset 0 0 1.6rem rgba(var(--accRgb),.4)}}
+@keyframes pulse{50%{box-shadow:0 0 3.4rem rgba(var(--accRgb),.9),inset 0 0 1.6rem rgba(var(--accRgb),.4)}}
+.jtxt{margin-left:1.3rem;min-width:0;flex:1}
+.jtxt b{font-size:2.3rem;font-style:italic;font-weight:600;color:var(--acc);display:block}
+#jMsg{font-size:1.7rem;max-height:4.2rem;overflow:hidden}
+
+/* overlays */
+.toast{position:fixed;left:50%;bottom:9rem;-webkit-transform:translateX(-50%);transform:translateX(-50%);max-width:70%;padding:1.1rem 1.8rem;border-radius:1.2rem;background:#0d2733;border:1px solid var(--acc);font-size:1.8rem;z-index:60;display:none;text-align:center}
+.toast.show{display:block}
+.confirm{position:fixed;left:50%;bottom:9rem;-webkit-transform:translateX(-50%);transform:translateX(-50%);padding:1.2rem 1.4rem;border-radius:1.2rem;background:#0d2733;border:1px solid var(--acc);z-index:61;display:none;align-items:center;max-width:90%}
+.confirm.show{display:flex}
+.confirm span{font-size:1.8rem;margin-right:1.4rem;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.confirm .btn{margin-left:.8rem}
+.sheet{position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(0,4,7,.82);z-index:50;display:none;align-items:center;justify-content:center}
+.sheet.show{display:flex}
+.panel{width:66rem;max-width:94%;max-height:92%;display:flex;flex-direction:column;border-radius:1.6rem;border:1px solid rgba(var(--accRgb),.4);background:#07141b}
+.phead{display:flex;align-items:center;padding:1.2rem 1.2rem 1.2rem 2rem;border-bottom:1px solid rgba(255,255,255,.1);flex:none}
+.phead h2{margin:0;font-size:2.4rem;font-style:italic;font-weight:600;flex:1}
+.pbody{padding:1.4rem 2rem 2rem;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.pbody p{margin:.4rem 0 1rem;color:#b9cbd3;font-size:1.7rem;line-height:1.35}
+.fld{margin-bottom:1.3rem}
+.fld>label,.fld>.lbl{display:block;color:var(--dim);font-size:1.5rem;margin-bottom:.4rem}
+.fld .inp{width:100%}
+.two{display:flex;margin:0 -.6rem}.two>.fld{flex:1;margin-left:.6rem;margin-right:.6rem;min-width:0}
+.seg{display:flex;flex-wrap:wrap}
+.seg button{height:4.2rem;padding:0 1.4rem;margin:0 .6rem .6rem 0;border-radius:.9rem;border:1px solid rgba(255,255,255,.18);font-size:1.6rem}
+.seg button.on{border-color:var(--acc);background:rgba(var(--accRgb),.2);color:#fff}
+.rowl{display:flex;align-items:center;padding:1rem 0;border-bottom:1px solid rgba(255,255,255,.08)}
+.rowl .nm{flex:1;min-width:0}
+.rowl .nm b{display:block;font-size:1.9rem;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rowl .nm span{color:var(--dim);font-size:1.4rem}
+.rowl .btn{margin-left:.8rem}
+.rowl.cur .nm b{color:var(--acc)}
+.acts{display:flex;justify-content:flex-end;margin-top:1.4rem}
+.acts .btn{margin-left:.8rem}
+.kv{display:flex;flex-wrap:wrap;margin:0 -.5rem}
+.kv div{width:calc(33.33% - 1rem);margin:.5rem;padding:.8rem 1rem;border-radius:.9rem;background:rgba(255,255,255,.05)}
+.kv span{display:block;color:var(--dim);font-size:1.3rem}
+.kv b{font-size:2.1rem;font-style:italic;font-weight:600}
+.note{border-left:.3rem solid var(--amber);padding:.6rem 1.2rem;background:rgba(255,176,32,.08);border-radius:0 .8rem .8rem 0;color:#e6d2a8;font-size:1.6rem;line-height:1.35;margin-bottom:1.2rem}
+h3{font-size:1.8rem;font-weight:500;color:var(--acc);margin:1.6rem 0 .6rem}
+.hudbtns{position:fixed;right:1.4rem;bottom:1.4rem;z-index:45;display:none}
+.hudbtns .btn{margin-left:.8rem;opacity:.55}
+body.hud .hudbtns{display:flex}
+body.hud .left,body.hud .right,body.hud .strip,body.hud .dock,body.hud .top,body.hud .limit,body.hud .srcb{display:none}
+body.hud .body{padding:1rem}
+.cw{display:flex;align-items:center}
+.cwd{position:relative;width:19rem;height:19rem;flex:none;touch-action:none}
+.cwd canvas{width:100%;height:100%;border-radius:50%;display:block}
+.cwd i{position:absolute;left:50%;top:50%;width:2.8rem;height:2.8rem;margin:-1.4rem 0 0 -1.4rem;border-radius:50%;border:.3rem solid #fff;box-shadow:0 0 0 1px #000,0 .2rem .8rem rgba(0,0,0,.7);background:var(--acc);pointer-events:none}
+.cwp{margin-left:2rem;flex:1;min-width:0}
+.sw{display:inline-block;width:1.4rem;height:1.4rem;border-radius:50%;margin-right:.7rem;vertical-align:-.15rem}
+body.portrait .cw{display:block}body.portrait .cwp{margin:1.2rem 0 0}
+.hide{display:none!important}
+
+/* portrait phones */
+body.portrait .body{flex-direction:column;overflow-y:auto;-webkit-overflow-scrolling:touch;display:block}
+body.portrait .left,body.portrait .right{width:auto;margin-top:1rem}
+body.portrait .center{margin:0}
+body.portrait .dialbox{height:38rem;flex:none}
+body.portrait .veh{height:36rem}
+body.portrait .navc{height:32rem}
+body.portrait .strip{margin:0 .8rem}
+body.portrait .strip .x{display:none}
+@media (prefers-reduced-motion:reduce){.orb.busy,.tt.blink{-webkit-animation:none;animation:none}}
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="top">
+    <div class="clock"><span id="clk" class="it">--:--</span><span id="date"></span></div>
+    <div class="notch"></div>
+    <div class="stat">
+      <button class="pill" id="stGps"><i></i><span>GPS off</span></button>
+      <button class="pill" id="stObd"><i></i><span>OBD off</span></button>
+    </div>
+  </header>
+
+  <div class="body" id="body">
+    <div class="col center" id="center">
+      <div class="dialbox" id="dialBox">
+        <div class="dial" id="dial">
+          <svg id="dialSvg" viewBox="0 0 480 400"></svg>
+          <div class="spd"><span id="spd" class="it">--</span><span id="unit">km/h</span><span id="rpm"></span></div>
+        </div>
+        <button class="limit" id="limit" aria-label="Speed limit warning"><b>--</b><small>limit</small></button>
+        <div class="srcb" id="srcb"></div>
+      </div>
+      <div class="strip">
+        <div><span class="lbl">Odo</span><b id="sOdo">0</b><em>km</em></div>
+        <div><span class="lbl">Trip</span><b id="sTrip">0.0</b><em>km</em></div>
+        <div class="x"><span class="lbl">Avg</span><b id="sAvg">0</b></div>
+        <div class="x"><span class="lbl">Top</span><b id="sMax">0</b></div>
+      </div>
+      <nav class="dock">
+        <button class="dk act" data-go="home" aria-label="Home" data-ic="home"></button>
+        <button class="dk" data-go="places" aria-label="Places" data-ic="nav"></button>
+        <button class="dk" data-go="music" aria-label="Music" data-ic="note"></button>
+        <button class="dk" data-go="garage" aria-label="Vehicles" data-ic="car"></button>
+        <button class="dk" data-go="hud" aria-label="HUD mode" data-ic="hud"></button>
+        <button class="dk" data-go="settings" aria-label="Settings" data-ic="gear"></button>
+      </nav>
+    </div>
+
+    <div class="col left">
+      <section class="card veh grow">
+        <button class="vhead" id="vHead"><span data-ic="car"></span><span><span class="lbl">Vehicle</span><br><span class="vname it" id="vName">Add a vehicle</span></span></button>
+        <div class="vphoto" id="vPhoto"></div>
+        <div class="tts" id="tts"></div>
+      </section>
+      <section class="card music gap">
+        <div class="mrow">
+          <div class="art2" data-ic="note"></div>
+          <div class="minfo">
+            <div id="mTitle" class="it">No music yet</div>
+            <div id="mSub">Add songs from this device</div>
+            <div class="bar" id="mBar"><div class="tr"><div class="fl" id="mFill"></div></div></div>
+            <div class="times"><span id="mCur">0:00</span><span id="mDur">0:00</span></div>
+          </div>
+        </div>
+        <div class="mctl">
+          <button class="ib sm dimi" id="mShuf" aria-label="Shuffle" data-ic="shuffle"></button>
+          <button class="ib" id="mPrev" aria-label="Previous song" data-ic="prev"></button>
+          <button class="ib big" id="mPlay" aria-label="Play or pause" data-ic="play"></button>
+          <button class="ib" id="mNext" aria-label="Next song" data-ic="next"></button>
+          <button class="ib sm dimi" id="mRep" aria-label="Repeat" data-ic="repeat"></button>
+        </div>
+      </section>
+    </div>
+
+    <div class="col right">
+      <section class="card navc grow">
+        <div class="banner" id="banner"><span data-ic="nav"></span><div><b id="bTitle">No destination</b><span id="bSub">Type a place below, or ask the assistant</span></div></div>
+        <div class="trail" id="trail"><canvas id="trailCv"></canvas><div class="hd" id="trailHd"></div></div>
+        <div class="irow"><input class="inp" id="dest" placeholder="Where to?" autocomplete="off" enterkeyhint="go"><button class="btn pri" id="destGo">Go</button></div>
+        <div class="chips" id="chips"></div>
+      </section>
+      <section class="card jar gap">
+        <div class="jtop">
+          <div class="orb" id="orb"></div>
+          <div class="jtxt"><b>JARVIS</b><div id="jMsg">How can I help you?</div></div>
+        </div>
+        <div class="irow"><input class="inp" id="cmd" placeholder="Try: go to Kandy" autocomplete="off" enterkeyhint="send"><button class="ib act hide" id="mic" aria-label="Speak" data-ic="mic"></button><button class="btn" id="cmdGo">Send</button></div>
+      </section>
+    </div>
+  </div>
+</div>
+<div id="dimmer"></div>
+<div class="hudbtns"><button class="btn ghost" id="hudMirror">Mirror</button><button class="btn ghost" id="hudExit">Exit HUD</button></div>
+<div class="toast" id="toast"></div>
+<div class="confirm" id="confirm"><span id="cfText"></span><button class="btn pri" id="cfYes">Start</button><button class="btn ghost" id="cfNo">Cancel</button></div>
+
+<!-- Vehicles -->
+<div class="sheet" id="shGarage"><div class="panel">
+  <div class="phead"><h2>Vehicles</h2><button class="btn pri" id="gAdd">Add vehicle</button><button class="ib" data-close data-ic="close" aria-label="Close"></button></div>
+  <div class="pbody" id="gList"></div>
+</div></div>
+
+<div class="sheet" id="shCar"><div class="panel">
+  <div class="phead"><h2 id="fTitle">Add vehicle</h2><button class="ib" data-close data-ic="close" aria-label="Close"></button></div>
+  <div class="pbody">
+    <div class="two"><div class="fld"><label for="fMake">Make</label><input class="inp" id="fMake" placeholder="Toyota"></div><div class="fld"><label for="fModel">Model</label><input class="inp" id="fModel" placeholder="Vitz"></div></div>
+    <div class="two"><div class="fld"><label for="fYear">Year</label><input class="inp" id="fYear" inputmode="numeric" placeholder="2008"></div><div class="fld"><label for="fPlate">Number plate</label><input class="inp" id="fPlate" placeholder="CAB-1234"></div></div>
+    <div class="fld"><span class="lbl">Photo</span><div class="irow"><button class="btn" id="fPhotoBtn">Choose photo</button><button class="btn ghost hide" id="fPhotoDel">Remove photo</button><span class="lbl" id="fPhotoSt" style="margin-left:1rem"></span></div><input type="file" id="fPhoto" accept="image/*" class="hide"></div>
+    <div class="fld"><span class="lbl">Body type</span><div class="seg" id="fBody"><button data-v="hatch">Hatchback</button><button data-v="sedan">Sedan</button><button data-v="suv">SUV</button><button data-v="van">Van</button><button data-v="pickup">Pickup</button></div></div>
+    <div class="fld"><span class="lbl">Speedometer scale</span><div class="seg" id="fDial"><button data-v="160">160</button><button data-v="180">180</button><button data-v="220">220</button><button data-v="260">260</button></div></div>
+    <div class="two"><div class="fld"><label for="fOdo">Odometer now (km)</label><input class="inp" id="fOdo" inputmode="numeric" placeholder="84210"></div><div class="fld"><label for="fService">Next service at (km)</label><input class="inp" id="fService" inputmode="numeric" placeholder="90000"></div></div>
+    <div class="two"><div class="fld"><label for="fKmpl">Fuel economy (km per litre)</label><input class="inp" id="fKmpl" inputmode="decimal" placeholder="16"></div><div class="fld"><label for="fCorr">Speedometer correction (%)</label><input class="inp" id="fCorr" inputmode="decimal" placeholder="0"></div></div>
+    <p>Correction: if your dashboard shows 62 when this app shows 60, enter 3. The app then shows the same number as the dashboard.</p>
+    <div class="acts"><button class="btn red hide" id="fDel">Delete vehicle</button><button class="btn pri" id="fSave">Save vehicle</button></div>
+  </div>
+</div></div>
+
+<!-- Settings -->
+<div class="sheet" id="shSettings"><div class="panel">
+  <div class="phead"><h2>Settings</h2><button class="ib" data-close data-ic="close" aria-label="Close"></button></div>
+  <div class="pbody">
+    <div class="fld"><span class="lbl">Colour theme</span>
+      <div class="cw"><div class="cwd" id="cw"><canvas id="cwCv" width="240" height="240"></canvas><i id="cwDot"></i></div>
+      <div class="cwp"><p id="cwNote">Drag on the circle to pick any colour.</p><div class="seg" id="sAcc">
+        <button data-v="31,208,240"><i class="sw" style="background:rgb(31,208,240)"></i>Cyan</button><button data-v="255,45,70"><i class="sw" style="background:rgb(255,45,70)"></i>Red</button><button data-v="255,176,32"><i class="sw" style="background:rgb(255,176,32)"></i>Amber</button><button data-v="60,255,140"><i class="sw" style="background:rgb(60,255,140)"></i>Green</button><button data-v="170,110,255"><i class="sw" style="background:rgb(170,110,255)"></i>Purple</button><button data-v="226,238,243"><i class="sw" style="background:rgb(226,238,243)"></i>White</button>
+      </div></div></div></div>
+    <div class="fld"><span class="lbl">Speed unit</span><div class="seg" id="sUnit"><button data-v="kmh">km/h</button><button data-v="mph">mph</button></div></div>
+    <div class="fld"><span class="lbl">Speed source</span><div class="seg" id="sSrc"><button data-v="auto">Automatic (OBD when connected)</button><button data-v="gps">GPS only</button></div></div>
+    <div class="fld"><span class="lbl">Speed limit warning</span><div class="seg" id="sLimit"><button data-v="0">Off</button><button data-v="40">40</button><button data-v="50">50</button><button data-v="60">60</button><button data-v="70">70</button><button data-v="100">100</button><button data-v="120">120</button></div></div>
+    <div class="fld"><span class="lbl">Warning sound</span><div class="seg" id="sBeep"><button data-v="1">On</button><button data-v="0">Off</button></div></div>
+    <div class="fld"><span class="lbl">Screen brightness</span><div class="seg" id="sTheme"><button data-v="auto">Dim after sunset</button><button data-v="day">Always bright</button><button data-v="night">Always dim</button></div></div>
+    <div class="two"><div class="fld"><label for="sPrice">Fuel price per litre</label><input class="inp" id="sPrice" inputmode="decimal" placeholder="0"></div><div class="fld"><label for="sCur">Currency</label><input class="inp" id="sCur" placeholder="Rs"></div></div>
+    <h3>This trip</h3>
+    <div class="kv" id="tripKv"></div>
+    <div class="acts"><button class="btn" id="sDemo">Start demo drive</button><button class="btn" id="sObd">OBD adapter</button><button class="btn red" id="sReset">Reset trip</button></div>
+  </div>
+</div></div>
+
+<!-- OBD -->
+<div class="sheet" id="shObd"><div class="panel">
+  <div class="phead"><h2>OBD adapter</h2><button class="ib" data-close data-ic="close" aria-label="Close"></button></div>
+  <div class="pbody">
+    <p id="oStatus">Not connected.</p>
+    <div class="note hide" id="oNoApp">OBD needs Bluetooth or Wi-Fi access, which only works in the installed app. In this preview, use the demo drive in Settings.</div>
+    <div id="oCtl">
+      <h3>Bluetooth adapter</h3>
+      <p>Pair the adapter in Android Bluetooth settings first. The PIN is usually 1234 or 0000.</p>
+      <div class="acts" style="justify-content:flex-start;margin-top:0"><button class="btn" id="oScan" style="margin-left:0">Show paired devices</button><button class="btn red hide" id="oOff">Disconnect</button></div>
+      <div id="oList"></div>
+      <h3>Wi-Fi adapter</h3>
+      <div class="two"><div class="fld"><label for="oHost">Address</label><input class="inp" id="oHost" placeholder="192.168.0.10"></div><div class="fld"><label for="oPort">Port</label><input class="inp" id="oPort" inputmode="numeric" placeholder="35000"></div></div>
+      <div class="acts" style="justify-content:flex-start;margin-top:0"><button class="btn" id="oTcp" style="margin-left:0">Connect over Wi-Fi</button></div>
+    </div>
+    <h3>Live from the car</h3>
+    <div class="kv" id="oKv"></div>
+  </div>
+</div></div>
+
+<!-- Music -->
+<div class="sheet" id="shMusic"><div class="panel">
+  <div class="phead"><h2>Music</h2><button class="btn pri" id="mAdd">Add songs</button><button class="ib" data-close data-ic="close" aria-label="Close"></button></div>
+  <div class="pbody"><input type="file" id="mFiles" accept="audio/*" multiple class="hide"><div id="mList"></div></div>
+</div></div>
+
+<!-- Places -->
+<div class="sheet" id="shPlaces"><div class="panel">
+  <div class="phead"><h2>Places</h2><button class="ib" data-close data-ic="close" aria-label="Close"></button></div>
+  <div class="pbody">
+    <div class="two"><div class="fld"><label for="pName">Name</label><input class="inp" id="pName" placeholder="Home"></div><div class="fld"><label for="pQ">Address or place</label><input class="inp" id="pQ" placeholder="Laxapana"></div></div>
+    <div class="acts" style="margin-top:0"><button class="btn pri" id="pAdd">Save place</button></div>
+    <h3>Saved</h3><div id="pList"></div>
+    <h3>Recent</h3><div id="rList"></div>
+  </div>
+</div></div>
+
+<!-- Info -->
+<div class="sheet" id="shInfo"><div class="panel">
+  <div class="phead"><h2 id="iTitle"></h2><button class="ib" data-close data-ic="close" aria-label="Close"></button></div>
+  <div class="pbody" id="iBody"></div>
+</div></div>
+
+<audio id="audio" preload="metadata"></audio>
+
+<script>
+(function(){
+'use strict';
+var KEY='drivora.v1';
+function $(id){return document.getElementById(id);}
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function trim(s){return String(s==null?'':s).replace(/^\s+|\s+$/g,'');}
+function num(v,d){var n=parseFloat(String(v).replace(/,/g,''));return isNaN(n)?d:n;}
+function pad2(n){return n<10?'0'+n:''+n;}
+function commas(n){return String(Math.floor(n)).replace(/\B(?=(\d{3})+(?!\d))/g,',');}
+function fmtTime(s){s=Math.max(0,Math.floor(s||0));var h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=s%60;return h?h+':'+pad2(m)+':'+pad2(x):m+':'+pad2(x);}
+function has(el,c){return el.classList.contains(c);}
+function tog(el,c,on){if(on)el.classList.add(c);else el.classList.remove(c);}
+
+/* ---------- icons ---------- */
+var IC={
+play:'<path fill="currentColor" d="M8 5v14l11-7z"/>',
+pause:'<path fill="currentColor" d="M6 5h4v14H6zM14 5h4v14h-4z"/>',
+next:'<path fill="currentColor" d="M6 6l8.5 6L6 18zM16 6h2v12h-2z"/>',
+prev:'<path fill="currentColor" d="M18 6l-8.5 6 8.5 6zM6 6h2v12H6z"/>',
+shuffle:'<path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M3 7h3.5c2 0 3.200 1 4.200 2.500l2.600 5c1 1.500 2.200 2.500 4.200 2.500H21M18 14.500l3 2.500-3 2.500M3 17h3.500c1.300 0 2.300-.5 3.100-1.300M21 7h-3.500c-1.300 0-2.300.5-3.100 1.300M18 4.500L21 7l-3 2.500"/>',
+repeat:'<path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M17 3l3 3-3 3M20 6H8a4 4 0 0 0-4 4v1M7 21l-3-3 3-3M4 18h12a4 4 0 0 0 4-4v-1"/>',
+close:'<path fill="none" stroke="currentColor" stroke-width="2.200" stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/>',
+mic:'<path fill="currentColor" d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.900V22h2v-3.100A7 7 0 0 0 19 12z"/>',
+nav:'<path fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" d="M20 4L4 10.500l6.500 3L13.500 20z"/>',
+home:'<path fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" d="M4 11l8-7 8 7v9h-5v-6H9v6H4z"/>',
+note:'<path fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" d="M9 18V5l11-2v13"/><circle cx="6.500" cy="18" r="2.500" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="17.500" cy="16" r="2.500" fill="none" stroke="currentColor" stroke-width="2"/>',
+car:'<path fill="none" stroke="currentColor" stroke-width="1.800" stroke-linejoin="round" d="M5 11l1.600-4.200A2 2 0 0 1 8.500 5.500h7a2 2 0 0 1 1.900 1.300L19 11M4 11h16a1 1 0 0 1 1 1v5h-2.500v1.500h-2V17h-9v1.500h-2V17H3v-5a1 1 0 0 1 1-1z"/><circle cx="7" cy="14" r="1" fill="currentColor"/><circle cx="17" cy="14" r="1" fill="currentColor"/>',
+hud:'<path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M4 16a8 8 0 0 1 16 0M12 16l4-5"/><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M3 20h18"/>',
+gear:'<path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="9" cy="17" r="2" fill="none" stroke="currentColor" stroke-width="2"/>',
+left:'<path fill="none" stroke="currentColor" stroke-width="2.200" stroke-linecap="round" stroke-linejoin="round" d="M15 5l-7 7 7 7"/>',
+right:'<path fill="none" stroke="currentColor" stroke-width="2.200" stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>',
+low:'<path fill="none" stroke="currentColor" stroke-width="1.800" stroke-linecap="round" d="M13 6c4.500 0 7 2.700 7 6s-2.500 6-7 6c-1 0-1.500-2.700-1.500-6S12 6 13 6zM3 9l5.500 1.500M3 12.500L8.500 14M3 16l5.500 1.500"/>',
+high:'<path fill="none" stroke="currentColor" stroke-width="1.800" stroke-linecap="round" d="M13 6c4.500 0 7 2.700 7 6s-2.500 6-7 6c-1 0-1.500-2.700-1.500-6S12 6 13 6zM3 8h5.500M3 12h5.500M3 16h5.500"/>',
+fog:'<path fill="none" stroke="currentColor" stroke-width="1.800" stroke-linecap="round" d="M13 6c4.500 0 7 2.700 7 6s-2.500 6-7 6c-1 0-1.500-2.700-1.500-6S12 6 13 6zM3 8.500h5M3 12h5M3 15.500h5M5.500 6c1 2 -1 4 0 6s-1 4 0 6"/>',
+hazard:'<path fill="none" stroke="currentColor" stroke-width="1.800" stroke-linejoin="round" d="M12 4l9 16H3zM12 9.500l4.300 7.700H7.700z"/>',
+engine:'<path fill="none" stroke="currentColor" stroke-width="1.800" stroke-linejoin="round" d="M8 5h6M11 5v3M6 8h9l2 2.500h2V9h1.500v8H19v-1.500h-2L15 18H9l-2-2H5v-3H3.500M5 13v-3h1z"/>',
+batt:'<path fill="none" stroke="currentColor" stroke-width="1.800" stroke-linejoin="round" d="M3 8h18v11H3zM6 8V5.500h3V8M15 8V5.500h3V8M6 13.500h3M15.500 13.500h3M17 12v3"/>',
+temp:'<path fill="none" stroke="currentColor" stroke-width="1.800" stroke-linecap="round" d="M12 4v10M12 6h3M12 9h3M3 19c1.500 1 3 1 4.500 0s3-1 4.500 0 3 1 4.500 0 3-1 4.500 0"/><circle cx="12" cy="15.500" r="1.800" fill="currentColor"/>',
+moon:'<path fill="none" stroke="currentColor" stroke-width="1.800" stroke-linejoin="round" d="M19 14.500A8 8 0 0 1 9.500 5 7.500 7.500 0 1 0 19 14.500z"/>'
+};
+function icon(n){return '<svg viewBox="0 0 24 24" aria-hidden="true">'+(IC[n]||'')+'</svg>';}
+(function(){var els=document.querySelectorAll('[data-ic]'),i;for(i=0;i<els.length;i++)els[i].innerHTML=icon(els[i].getAttribute('data-ic'));})();
+
+/* ---------- state ---------- */
+var THEMES={cyan:'31,208,240',red:'255,45,70',amber:'255,176,32',white:'226,238,243',green:'60,255,140',purple:'170,110,255',blue:'60,130,255',pink:'255,90,190',orange:'255,130,40',yellow:'255,225,50'};
+var state={v:1,cars:[],cur:null,trip:{dist:0,moving:0,max:0,smooth:0},
+  set:{unit:'kmh',src:'auto',limit:0,beep:1,theme:'auto',price:0,cur:'Rs',obd:null,acc:'cyan'},places:[],recent:[]};
+var dirty=false;
+function load(){
+  try{var raw=localStorage.getItem(KEY);if(!raw)return;var s=JSON.parse(raw),k;
+    if(s&&s.v===1){for(k in s.set)if(s.set.hasOwnProperty(k))state.set[k]=s.set[k];
+      state.cars=s.cars||[];state.cur=s.cur;state.trip=s.trip||state.trip;state.places=s.places||[];state.recent=s.recent||[];}
+  }catch(e){}
+}
+function save(){dirty=false;try{localStorage.setItem(KEY,JSON.stringify(state));return true;}catch(e){return false;}}
+function car(){var i;for(i=0;i<state.cars.length;i++)if(state.cars[i].id===state.cur)return state.cars[i];return state.cars[0]||null;}
+function carName(c){return trim((c.make||'')+' '+(c.model||''))||'My vehicle';}
+
+/* live values shared by every data source */
+var live={target:null,disp:0,t:0,acc:0,heading:null,alt:null,lat:null,lon:null,gps:'off',src:'none',
+  rpm:null,cool:null,fuel:null,volt:null,mil:null,dtc:0,load:null,
+  lights:{low:null,high:null,fog:null,haz:null},decel:false};
+var demoOn=false;
+
+/* ---------- toast / confirm / sheets ---------- */
+var toastT=null;
+function toast(m){var t=$('toast');t.textContent=m;t.classList.add('show');clearTimeout(toastT);toastT=setTimeout(function(){t.classList.remove('show');},3200);}
+function say(m){$('jMsg').textContent=m;}
+var cfFn=null;
+function confirmBar(text,yes,fn){$('cfText').textContent=text;$('cfYes').textContent=yes;cfFn=fn;$('confirm').classList.add('show');}
+$('cfYes').onclick=function(){$('confirm').classList.remove('show');var f=cfFn;cfFn=null;if(f)f();};
+$('cfNo').onclick=function(){$('confirm').classList.remove('show');cfFn=null;};
+function openSheet(id){closeSheets();$(id).classList.add('show');}
+function closeSheets(){var s=document.querySelectorAll('.sheet'),i;for(i=0;i<s.length;i++)s[i].classList.remove('show');if(document.activeElement&&document.activeElement.blur)document.activeElement.blur();}
+function info(title,html){$('iTitle').textContent=title;$('iBody').innerHTML=html;openSheet('shInfo');}
+document.addEventListener('click',function(e){
+  var t=e.target,i;
+  for(i=0;i<4&&t&&t!==document;i++){
+    if(t.hasAttribute&&t.hasAttribute('data-close')){closeSheets();return;}
+    if(t.parentNode&&t.parentNode.classList&&has(t.parentNode,'seg')&&t.tagName==='BUTTON'){segSet(t.parentNode,t.getAttribute('data-v'));if(t.parentNode.onpick)t.parentNode.onpick(t.getAttribute('data-v'));return;}
+    t=t.parentNode;
+  }
+  if(e.target.classList&&has(e.target,'sheet'))closeSheets();
+});
+function segSet(el,v){var b=el.getElementsByTagName('button'),i;el.setAttribute('data-val',v);for(i=0;i<b.length;i++)tog(b[i],'on',b[i].getAttribute('data-v')===String(v));}
+function segGet(el){return el.getAttribute('data-val');}
+
+/* ---------- layout ---------- */
+var lastW=0,lastH=0;
+function layout(force){
+  var w=window.innerWidth,h=window.innerHeight,ae=document.activeElement;
+  if(!force&&ae&&ae.tagName==='INPUT'&&w===lastW&&h<lastH)return; /* on-screen keyboard: keep the layout */
+  lastW=w;lastH=h;
+  var portrait=h>w*1.05;
+  tog(document.body,'portrait',portrait);
+  var rem=portrait?w/45:Math.min(w/102.4,h/60);
+  document.documentElement.style.fontSize=rem+'px';
+  var box=$('dialBox'),bw=box.clientWidth,bh=box.clientHeight;
+  var dw=Math.min(bw,bh*1.2);if(dw<50)dw=50;
+  var d=$('dial');d.style.width=dw+'px';d.style.height=(dw/1.2)+'px';d.style.fontSize=(dw/48)+'px';
+  drawTrail();
+}
+window.addEventListener('resize',function(){layout(false);});
+
+/* ---------- dial ---------- */
+var D={cx:240,cy:196,r:150},C=2*Math.PI*150,ARC=C*0.75,GL=2*Math.PI*200*60/360;
+function pol(r,deg){var a=deg*Math.PI/180;return [D.cx+r*Math.cos(a),D.cy+r*Math.sin(a)];}
+function f1(n){return Math.round(n*10)/10;}
+function mph(){return state.set.unit==='mph';}
+function toDisp(kmh){return mph()?kmh*0.621371:kmh;}
+function dialMax(){var c=car(),m=c?(+c.dial||180):180;return mph()?Math.ceil(m*0.621371/10)*10:m;}
+function buildDial(){
+  var max=dialMax(),s='',i,a,p,q,step=max>200?20:10,lab=max>200?40:20,C2=2*Math.PI*161;
+  var redFrom=Math.round(max*0.8/step)*step;
+  s+='<defs><linearGradient id="rd" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="rgb(var(--accRgb))" stop-opacity="0"/><stop offset="1" stop-color="rgb(var(--accRgb))" stop-opacity=".16"/></linearGradient></defs>';
+  /* road + car */
+  s+='<path d="M214 250L266 250L352 400L128 400Z" fill="url(#rd)"/>';
+  s+='<line class="edge" x1="214" y1="250" x2="128" y2="400"/><line class="edge" x1="266" y1="250" x2="352" y2="400"/>';
+  s+='<line class="lane" id="laneL" x1="197" y1="262" x2="150" y2="400"/><line class="lane" id="laneR" x1="283" y1="262" x2="330" y2="400"/>';
+  s+='<g id="rcar" transform="translate(240 352)"><path d="M-36 0Q-39-22-28-31L-22-47Q-20-53-10-53L10-53Q20-53 22-47L28-31Q39-22 36 0Z" fill="#16252e" stroke="rgba(234,246,250,.55)" stroke-width="1.200"/>'
+    +'<path d="M-19-46L19-46L24-32L-24-32Z" fill="#061016" stroke="rgba(234,246,250,.3)" stroke-width="1"/>'
+    +'<rect class="tl" x="-34" y="-26" width="17" height="6" rx="2"/><rect class="tl" x="17" y="-26" width="17" height="6" rx="2"/>'
+    +'<rect x="-8" y="-15" width="16" height="7" rx="1" fill="#0b161c" stroke="rgba(234,246,250,.3)" stroke-width=".800"/>'
+    +'<rect x="-35" y="0" width="13" height="8" rx="2" fill="#000"/><rect x="22" y="0" width="13" height="8" rx="2" fill="#000"/></g>';
+  /* main ring */
+  s+='<circle class="d-ring" cx="240" cy="196" r="161" stroke-dasharray="'+f1(C2*0.75)+' '+f1(C2)+'" transform="rotate(135 240 196)"/>';
+  s+='<circle class="d-red" cx="240" cy="196" r="161" stroke-dasharray="'+f1(C2*0.75*(1-redFrom/max))+' '+f1(C2)+'" transform="rotate('+f1(135+270*redFrom/max)+' 240 196)"/>';
+  s+='<circle class="d-track" cx="240" cy="196" r="150" stroke-dasharray="'+f1(ARC)+' '+f1(C)+'" transform="rotate(135 240 196)"/>';
+  s+='<circle class="d-glow" id="dGlow" cx="240" cy="196" r="150" stroke-dasharray="0 '+f1(C)+'" transform="rotate(135 240 196)"/>';
+  s+='<circle class="d-fill" id="dFill" cx="240" cy="196" r="150" stroke-dasharray="0 '+f1(C)+'" transform="rotate(135 240 196)"/>';
+  for(i=0;i<=max;i+=step/2){
+    a=135+270*i/max;var major=(i%lab===0),mid=(i%step===0);
+    p=pol(major?126:(mid?131:136),a);q=pol(142,a);
+    s+='<line class="d-tick'+(mid?'':' mn')+'" x1="'+f1(p[0])+'" y1="'+f1(p[1])+'" x2="'+f1(q[0])+'" y2="'+f1(q[1])+'"/>';
+    if(major){p=pol(110,a);s+='<text class="d-num" x="'+f1(p[0])+'" y="'+f1(p[1]+5)+'">'+i+'</text>';}
+  }
+  s+='<path class="d-lim" id="dLim" d="" />';
+  /* side gauges: engine temperature (left), fuel (right) */
+  var a1=pol(200,150),a2=pol(200,210),b1=pol(200,30),b2=pol(200,-30);
+  var tp='M'+f1(a1[0])+' '+f1(a1[1])+'A200 200 0 0 1 '+f1(a2[0])+' '+f1(a2[1]);
+  var fp='M'+f1(b1[0])+' '+f1(b1[1])+'A200 200 0 0 0 '+f1(b2[0])+' '+f1(b2[1]);
+  s+='<path class="g-track" d="'+tp+'"/><path class="g-fill" id="gTemp" d="'+tp+'" stroke-dasharray="0 999"/>';
+  s+='<path class="g-track" d="'+fp+'"/><path class="g-fill" id="gFuel" d="'+fp+'" stroke-dasharray="0 999"/>';
+  s+='<text class="g-t" x="'+f1(a2[0]-4)+'" y="'+f1(a2[1]-14)+'">H</text><text class="g-t" x="'+f1(a1[0]-4)+'" y="'+f1(a1[1]+22)+'">C</text>';
+  s+='<text class="g-t" x="'+f1(b2[0]+4)+'" y="'+f1(b2[1]-14)+'">F</text><text class="g-t" x="'+f1(b1[0]+4)+'" y="'+f1(b1[1]+22)+'">E</text>';
+  s+='<text class="g-v" id="gTempV" x="'+f1(a1[0]-4)+'" y="'+f1(a1[1]+40)+'"></text><text class="g-v" id="gFuelV" x="'+f1(b1[0]+4)+'" y="'+f1(b1[1]+40)+'"></text>';
+  $('dialSvg').innerHTML=s;
+  $('unit').textContent=mph()?'mph':'km/h';
+  shown={};updLimitMark();
+}
+function updLimitMark(){
+  var lim=state.set.limit,max=dialMax(),el=$('dLim'),b=$('limit');
+  if(!el)return;
+  if(lim>0&&lim<=max){var a=135+270*lim/max,p=pol(172,a),q=pol(184,a-2.4),r=pol(184,a+2.4);
+    el.setAttribute('d','M'+f1(p[0])+' '+f1(p[1])+'L'+f1(q[0])+' '+f1(q[1])+'L'+f1(r[0])+' '+f1(r[1])+'Z');}
+  else el.setAttribute('d','');
+  b.firstChild.textContent=lim>0?lim:'--';tog(b,'set',lim>0);
+}
+$('limit').onclick=function(){var o=[0,40,50,60,70,100,120],i=o.indexOf(+state.set.limit);state.set.limit=o[(i+1)%o.length];updLimitMark();save();toast(state.set.limit?'Warning above '+state.set.limit+' '+(mph()?'mph':'km/h'):'Speed limit warning off');};
+$('dial').onclick=function(){setHud(!has(document.body,'hud'));};
+
+/* ---------- vehicle card ---------- */
+var SIDE={hatch:'M14 78L14 60Q16 50 34 46L70 40Q92 20 120 18L168 18Q196 20 214 44L224 50Q230 56 228 78Z',
+sedan:'M10 78L10 60Q14 50 36 47L72 42Q94 22 122 20L160 20Q180 22 196 42L222 46Q232 50 230 78Z',
+suv:'M12 78L12 54Q14 44 34 41L64 36Q84 14 112 12L196 12Q214 14 220 36L226 44Q230 52 228 78Z',
+van:'M12 78L12 50Q16 30 40 16Q52 10 70 10L208 10Q224 12 226 30L228 78Z',
+pickup:'M10 78L10 58Q14 48 34 45L66 40Q84 18 108 16L140 16Q150 18 152 40L226 42Q232 46 230 78Z'};
+function sideArt(body){
+  return '<svg viewBox="0 0 240 100"><path d="'+(SIDE[body]||SIDE.hatch)+'" fill="rgba(var(--accRgb),.1)" stroke="rgb(var(--accRgb))" stroke-width="1.600" stroke-linejoin="round"/>'
+   +'<circle cx="58" cy="80" r="15" fill="#02070B" stroke="rgb(var(--accRgb))" stroke-width="1.600"/><circle cx="182" cy="80" r="15" fill="#02070B" stroke="rgb(var(--accRgb))" stroke-width="1.600"/>'
+   +'<circle cx="58" cy="80" r="6" fill="none" stroke="rgba(234,246,250,.5)"/><circle cx="182" cy="80" r="6" fill="none" stroke="rgba(234,246,250,.5)"/>'
+   +'<line x1="2" y1="95" x2="238" y2="95" stroke="rgba(var(--accRgb),.4)"/></svg>';
+}
+function renderCar(){
+  var c=car(),h='';
+  if(!c){$('vName').textContent='Add a vehicle';
+    $('vPhoto').innerHTML='<div class="vempty">Set up your vehicle to track its odometer, service and fuel.<br><br><button class="btn pri" id="vAdd">Add vehicle</button></div>';
+    $('vAdd').onclick=function(){editCar(null);};applyTheme(state.set.acc);return;}
+  $('vName').textContent=carName(c);
+  if(c.photo)h+='<img alt="" src="'+c.photo+'">';else h+='<div class="art">'+sideArt(c.body)+'</div>';
+  if(state.cars.length>1)h+='<button class="ar l" id="vPrev" aria-label="Previous vehicle">'+icon('left')+'</button><button class="ar r" id="vNext" aria-label="Next vehicle">'+icon('right')+'</button>';
+  if(c.plate||c.year)h+='<div class="plate">'+esc(trim((c.plate||'')+(c.plate&&c.year?'  ':'')+(c.year||'')))+'</div>';
+  $('vPhoto').innerHTML=h;
+  if($('vPrev')){$('vPrev').onclick=function(){stepCar(-1);};$('vNext').onclick=function(){stepCar(1);};}
+  applyTheme(c.acc||state.set.acc);
+}
+function stepCar(d){var i,n=state.cars.length;for(i=0;i<n;i++)if(state.cars[i].id===state.cur)break;useCar(state.cars[(i+d+n)%n].id);}
+function useCar(id){state.cur=id;save();renderCar();buildDial();renderGarage();}
+function themeRgb(k){return THEMES[k]||(/^\d{1,3},\d{1,3},\d{1,3}$/.test(k||'')?k:THEMES.cyan);}
+function applyTheme(k){var rgb=themeRgb(k),st=document.documentElement.style;st.setProperty('--accRgb',rgb);st.setProperty('--acc','rgb('+rgb+')');ambKey='';trailDirty=true;drawTrail();}
+$('vHead').onclick=function(){renderGarage();openSheet('shGarage');};
+
+function renderGarage(){
+  var h='',i,c;
+  if(!state.cars.length)h='<p>No vehicles yet. Add yours to get started.</p>';
+  for(i=0;i<state.cars.length;i++){c=state.cars[i];
+    h+='<div class="rowl'+(c.id===state.cur?' cur':'')+'"><div class="nm"><b>'+esc(carName(c))+'</b><span>'+esc(trim((c.year||'')+' '+(c.plate||'')))+' &nbsp; '+commas(c.odo||0)+' km</span></div>'
+      +(c.id===state.cur?'<span class="lbl">In use</span>':'<button class="btn" data-use="'+c.id+'">Use</button>')+'<button class="btn ghost" data-edit="'+c.id+'">Edit</button></div>';}
+  $('gList').innerHTML=h;
+}
+$('gList').onclick=function(e){var t=e.target;if(t.getAttribute('data-use')){useCar(t.getAttribute('data-use'));toast('Now using '+carName(car()));}else if(t.getAttribute('data-edit'))editCar(t.getAttribute('data-edit'));};
+$('gAdd').onclick=function(){editCar(null);};
+var editId=null,editPhoto=null;
+function editCar(id){
+  var c=null,i;for(i=0;i<state.cars.length;i++)if(state.cars[i].id===id)c=state.cars[i];
+  editId=c?c.id:null;editPhoto=c?c.photo||null:null;
+  $('fTitle').textContent=c?'Edit vehicle':'Add vehicle';
+  $('fMake').value=c?c.make||'':'';$('fModel').value=c?c.model||'':'';$('fYear').value=c?c.year||'':'';$('fPlate').value=c?c.plate||'':'';
+  $('fOdo').value=c?Math.floor(c.odo||0):'';$('fService').value=c&&c.service?c.service:'';$('fKmpl').value=c&&c.kmpl?c.kmpl:'';$('fCorr').value=c&&c.corr?c.corr:'';
+  segSet($('fBody'),c?c.body||'hatch':'hatch');segSet($('fDial'),c?c.dial||180:180);
+  photoState();tog($('fDel'),'hide',!c);openSheet('shCar');
+}
+function photoState(){$('fPhotoSt').textContent=editPhoto?'Photo added':'No photo, a drawing is shown';tog($('fPhotoDel'),'hide',!editPhoto);}
+$('fPhotoBtn').onclick=function(){$('fPhoto').click();};
+$('fPhotoDel').onclick=function(){editPhoto=null;photoState();};
+$('fPhoto').onchange=function(){
+  var f=this.files&&this.files[0];this.value='';if(!f)return;
+  var rd=new FileReader();rd.onload=function(){var im=new Image();im.onload=function(){
+    var sc=Math.min(1,720/im.width),cv=document.createElement('canvas');cv.width=Math.round(im.width*sc);cv.height=Math.round(im.height*sc);
+    cv.getContext('2d').drawImage(im,0,0,cv.width,cv.height);editPhoto=cv.toDataURL('image/jpeg',0.8);photoState();};
+    im.onerror=function(){toast('That file is not a picture this app can read');};im.src=rd.result;};
+  rd.readAsDataURL(f);
+};
+$('fSave').onclick=function(){
+  var make=trim($('fMake').value),model=trim($('fModel').value);
+  if(!make&&!model){toast('Enter the make or model first');return;}
+  var c=null,i;for(i=0;i<state.cars.length;i++)if(state.cars[i].id===editId)c=state.cars[i];
+  if(!c){c={id:'c'+Date.now()};state.cars.push(c);state.cur=c.id;}
+  c.make=make;c.model=model;c.year=trim($('fYear').value);c.plate=trim($('fPlate').value).toUpperCase();
+  c.body=segGet($('fBody'));c.dial=+segGet($('fDial'));c.acc=c.acc||state.set.acc||'cyan';
+  c.odo=Math.max(0,num($('fOdo').value,0));c.service=Math.max(0,num($('fService').value,0));c.kmpl=Math.max(0,num($('fKmpl').value,0));
+  c.corr=Math.max(-20,Math.min(20,num($('fCorr').value,0)));c.photo=editPhoto;
+  if(!save()){c.photo=null;save();toast('Saved, but the photo was too large to keep');}else toast('Saved '+carName(c));
+  closeSheets();renderCar();buildDial();renderGarage();
+};
+$('fDel').onclick=function(){
+  var id=editId;confirmBar('Delete this vehicle and its odometer?','Delete',function(){
+    var i;for(i=0;i<state.cars.length;i++)if(state.cars[i].id===id){state.cars.splice(i,1);break;}
+    if(state.cur===id)state.cur=state.cars.length?state.cars[0].id:null;save();closeSheets();renderCar();buildDial();renderGarage();toast('Vehicle deleted');});
+};
+
+/* ---------- tell-tales ---------- */
+var TT=[['low','low','Low beam'],['high','high','High beam'],['fog','fog','Fog'],['haz','hazard','Hazard'],
+        ['mil','engine','Engine'],['volt','batt','Battery'],['cool','temp','Temp'],['night','moon','Night']];
+(function(){var h='',i;for(i=0;i<TT.length;i++)h+='<button class="tt" data-k="'+TT[i][0]+'">'+icon(TT[i][1])+'<span>'+TT[i][2]+'</span></button>';$('tts').innerHTML=h;})();
+var NOSENSOR='<p>Light status is not part of the standard OBD data that every car shares. Each maker uses its own codes for the body computer.</p><p>This tile will light up once a light sensor source is added for your vehicle model. That is planned as a later stage, tested on the car itself.</p><p>Until then, the Night tile reminds you to check your headlights after sunset.</p>';
+$('tts').onclick=function(e){
+  var t=e.target,i,k=null;for(i=0;i<4&&t;i++){if(t.getAttribute&&t.getAttribute('data-k')){k=t.getAttribute('data-k');break;}t=t.parentNode;}
+  if(!k)return;
+  if(k==='low'||k==='high'||k==='fog'||k==='haz'){if(live.lights[k]===null)info('Light sensors','<div class="note">No light sensor is connected yet.</div>'+NOSENSOR);}
+  else if(k==='night')info('Night mode',isNight?'<p>It is after sunset. The screen is dimmed and you get one headlight reminder per drive.</p>':'<p>It is daytime. After sunset the screen dims by itself and you get a headlight reminder.</p>');
+  else{renderObd();openSheet('shObd');}
+};
+function renderTT(){
+  var b=$('tts').children,i,k,el,cls,txt,L=live.lights;
+  for(i=0;i<b.length;i++){el=b[i];k=el.getAttribute('data-k');cls='tt';txt=TT[i][2];
+    if(k==='low'){if(L.low!==null)cls+=L.low?' on':' off';}
+    else if(k==='high'){if(L.high!==null)cls+=L.high?' blue':' off';}
+    else if(k==='fog'){if(L.fog!==null)cls+=L.fog?' on':' off';}
+    else if(k==='haz'){if(L.haz!==null)cls+=L.haz?' warn blink':' off';}
+    else if(k==='mil'){if(live.mil!==null){cls+=live.mil?' warn':' off';txt=live.mil?(live.dtc?live.dtc+' fault'+(live.dtc>1?'s':''):'Check'):'Engine OK';}}
+    else if(k==='volt'){if(live.volt!==null){cls+=live.volt<11.8?' warn':' off';txt=live.volt.toFixed(1)+' V';}}
+    else if(k==='cool'){if(live.cool!==null){cls+=live.cool>=108?' warn':' off';txt=Math.round(live.cool)+'°C';}}
+    else if(k==='night'){cls+=isNight?' on':' off';txt=isNight?'Night':'Day';}
+    if(el.className!==cls)el.className=cls;
+    if(el.lastChild.textContent!==txt)el.lastChild.textContent=txt;
+  }
+}
+
+/* ---------- trip + feed (all sources end here) ---------- */
+function activeSrc(){
+  if(demoOn)return 'demo';
+  if(state.set.src!=='gps'&&Obd.state==='live'&&Date.now()-Obd.lastSpeed<3000)return 'obd';
+  return 'gps';
+}
+function feed(src,kmh,t){
+  if(src!==activeSrc())return;
+  var c=car(),last=live.t,prev=live.target;
+  if(last&&prev!==null&&t>last){
+    var dt=(t-last)/1000;
+    if(dt<15){
+      var avg=(prev+kmh)/2,a=(kmh-prev)/dt;
+      live.acc=live.acc*0.6+Math.abs(a)*0.4;live.decel=a<-2.5;
+      if(avg>=1.5){var km=avg*dt/3600;state.trip.dist+=km;state.trip.moving+=dt;if(c)c.odo=(c.odo||0)+km;if(live.acc<4.5)state.trip.smooth+=dt;dirty=true;}
+    }
+  }
+  live.t=t;live.target=kmh;live.src=src;
+  if(kmh>state.trip.max){state.trip.max=kmh;dirty=true;}
+}
+function resetTrip(){state.trip={dist:0,moving:0,max:0,smooth:0};save();shown={};toast('Trip reset');}
+
+/* ---------- GPS ---------- */
+var gpsWatch=null,gpsLast=0,gpsPrev=null;
+function hav(a,b,c,d){var R=6371000,r=Math.PI/180,x=(c-a)*r,y=(d-b)*r,s=Math.sin(x/2)*Math.sin(x/2)+Math.cos(a*r)*Math.cos(c*r)*Math.sin(y/2)*Math.sin(y/2);return 2*R*Math.asin(Math.sqrt(s));}
+function startGps(){
+  if(!navigator.geolocation){live.gps='none';return;}
+  if(gpsWatch!==null)return;
+  live.gps='search';
+  gpsWatch=navigator.geolocation.watchPosition(function(p){
+    var c=p.coords,t=Date.now(),v=null;
+    gpsLast=t;
+    if(c.accuracy>80){live.gps='weak';return;}
+    live.gps='ok';
+    if(typeof c.speed==='number'&&c.speed>=0)v=c.speed*3.6;
+    if(gpsPrev){var dt=(t-gpsPrev.t)/1000,d=hav(gpsPrev.lat,gpsPrev.lon,c.latitude,c.longitude);
+      if(v===null&&dt>0.3&&dt<15)v=d/dt*3.6;}
+    if(v===null)v=0;if(v<1.5)v=0;
+    gpsPrev={lat:c.latitude,lon:c.longitude,t:t};
+    live.lat=c.latitude;live.lon=c.longitude;
+    if(typeof c.heading==='number'&&!isNaN(c.heading)&&v>3)live.heading=c.heading;
+    if(typeof c.altitude==='number')live.alt=c.altitude;
+    if(!demoOn)trailAdd(c.latitude,c.longitude);
+    feed('gps',v,t);
+  },function(e){live.gps=(e&&e.code===1)?'denied':'search';},{enableHighAccuracy:true,maximumAge:1000,timeout:20000});
+}
+$('stGps').onclick=function(){
+  var m={ok:'GPS is locked on.',search:'Looking for satellites. This works best outdoors.',weak:'GPS signal is weak here.',denied:'Location permission is off. Allow it for this app in Android settings.',none:'This device has no GPS.',off:'GPS is off.'};
+  toast(m[live.gps]||'');if(live.gps==='denied'||live.gps==='off'){gpsWatch=null;startGps();}
+};
+
+/* ---------- OBD (ELM327 over Bluetooth or Wi-Fi) ---------- */
+var Obd={state:'off',name:'',tx:null,buf:'',cb:null,to:null,sup:null,slow:[],slowI:0,fails:0,lastSpeed:0,err:'',gen:0};
+function obdPlugin(){var c=window.Capacitor;return(c&&c.Plugins&&c.Plugins.ObdLink)?c.Plugins.ObdLink:null;}
+function obdRx(chunk){
+  Obd.buf+=chunk;var i=Obd.buf.indexOf('>');
+  if(i>=0){var r=Obd.buf.substring(0,i);Obd.buf='';clearTimeout(Obd.to);var cb=Obd.cb;Obd.cb=null;if(cb)cb(r);}
+}
+function obdCmd(cmd,ms,cb){
+  var g=Obd.gen;Obd.buf='';
+  Obd.cb=function(r){if(g===Obd.gen)cb(r);};
+  clearTimeout(Obd.to);Obd.to=setTimeout(function(){var c=Obd.cb;Obd.cb=null;if(c)c(null);},ms);
+  try{var p=Obd.tx(cmd+'\r');if(p&&p['catch'])p['catch'](function(){});}catch(e){}
+}
+function obdBytes(resp,mode,pid){
+  if(!resp)return null;
+  var key=(mode+0x40).toString(16).toUpperCase()+pid,lines=resp.split(/[\r\n]+/),i,l,ix,out,j;
+  for(i=0;i<lines.length;i++){
+    l=lines[i].replace(/\s+/g,'').toUpperCase();
+    if(/[^0-9A-F:]/.test(l))continue; /* text such as SEARCHING... or NO DATA */
+    ix=l.indexOf(key);if(ix<0)continue; /* normally 0; later when CAN headers are switched on */
+    out=[];for(j=ix+key.length;j+1<l.length;j+=2)out.push(parseInt(l.substr(j,2),16));
+    return out;
+  }
+  return null;
+}
+function obdAttach(tx,name){
+  Obd.gen++;Obd.tx=tx;Obd.name=name||'adapter';Obd.state='init';Obd.err='';Obd.sup=null;Obd.fails=0;Obd.buf='';Obd.cb=null;
+  var seq=[['ATZ',3500],['ATE0',1500],['ATL0',1500],['ATS0',1500],['ATH0',1500],['ATSP0',1500]],i=0;
+  (function step(){
+    if(i<seq.length){var s=seq[i++];obdCmd(s[0],s[1],step);return;}
+    obdProbe();
+  })();
+  renderObd();
+}
+function obdProbe(){
+  obdCmd('0100',12000,function(r){
+    var b=obdBytes(r,1,'00');
+    if(!b||b.length<4){Obd.state='init';Obd.err='The adapter answered, but the car did not. Turn the ignition on.';renderObd();
+      var g=Obd.gen;setTimeout(function(){if(g===Obd.gen&&Obd.tx)obdProbe();},4000);return;}
+    Obd.sup={};var n;for(n=1;n<=32;n++)if(b[Math.floor((n-1)/8)]&(0x80>>((n-1)%8)))Obd.sup[n]=1;
+    var next=function(){
+      Obd.slow=[];var want=[0x05,0x2F,0x04,0x01],k;
+      for(k=0;k<want.length;k++)if(Obd.sup[want[k]])Obd.slow.push(want[k]);
+      Obd.slow.push('RV');Obd.slowI=0;Obd.state='live';Obd.err='';Obd.fails=0;renderObd();obdLoop();
+    };
+    if(Obd.sup[0x20])obdCmd('0120',3000,function(r2){var c=obdBytes(r2,1,'20'),m;if(c&&c.length>=4)for(m=1;m<=32;m++)if(c[Math.floor((m-1)/8)]&(0x80>>((m-1)%8)))Obd.sup[32+m]=1;next();});
+    else next();
+  });
+}
+function hex2(n){var s=n.toString(16).toUpperCase();return s.length<2?'0'+s:s;}
+function obdLoop(){
+  if(Obd.state!=='live')return;
+  obdCmd('010D',1500,function(r){
+    var b=obdBytes(r,1,'0D');
+    if(b&&b.length){Obd.fails=0;Obd.lastSpeed=Date.now();feed('obd',b[0],Date.now());}
+    else if(++Obd.fails>10){Obd.state='init';Obd.err='Lost data from the car. Trying again.';live.rpm=null;renderObd();obdProbe();return;}
+    obdCmd('010C',1500,function(r2){
+      var c=obdBytes(r2,1,'0C');if(c&&c.length>1)live.rpm=(c[0]*256+c[1])/4;
+      var s=Obd.slow[Obd.slowI++%Obd.slow.length];
+      if(s==='RV'){obdCmd('ATRV',1500,function(r3){var m=r3&&/(\d+\.\d+)\s*V/i.exec(r3);if(m)live.volt=parseFloat(m[1]);obdLoop();});return;}
+      obdCmd('01'+hex2(s),1500,function(r3){
+        var d=obdBytes(r3,1,hex2(s));
+        if(d&&d.length){
+          if(s===0x05)live.cool=d[0]-40;
+          else if(s===0x2F)live.fuel=d[0]*100/255;
+          else if(s===0x04)live.load=d[0]*100/255;
+          else if(s===0x01){live.mil=!!(d[0]&0x80);live.dtc=d[0]&0x7F;}
+        }
+        obdLoop();
+      });
+    });
+  });
+}
+function obdDrop(msg){
+  Obd.gen++;clearTimeout(Obd.to);Obd.cb=null;Obd.tx=null;Obd.state='off';Obd.err=msg||'';
+  if(!demoOn){live.rpm=live.cool=live.fuel=live.volt=live.mil=live.load=null;live.dtc=0;}
+  renderObd();
+}
+var obdListening=false;
+function obdListen(){
+  var p=obdPlugin();if(!p||obdListening)return;obdListening=true;
+  p.addListener('data',function(e){obdRx(e.data||'');});
+  p.addListener('state',function(e){if(e&&e.connected===false&&Obd.tx)obdDrop('The adapter disconnected.');});
+}
+function obdConnect(cfg,quiet){
+  var p=obdPlugin();if(!p)return;
+  obdListen();Obd.gen++;Obd.state='connecting';Obd.name=cfg.name||cfg.host||'adapter';Obd.err='';renderObd();
+  var pr=cfg.type==='tcp'?p.connectTcp({host:cfg.host,port:cfg.port}):p.connect({address:cfg.address});
+  pr.then(function(){state.set.obd=cfg;save();obdAttach(function(s){return p.write({data:s});},Obd.name);if(!quiet)toast('Connected to '+Obd.name);})
+    ['catch'](function(e){obdDrop((e&&e.message)||'Could not connect.');if(!quiet)toast(Obd.err);});
+}
+function renderObd(){
+  var p=obdPlugin(),st=Obd.state,txt;
+  tog($('oNoApp'),'hide',!!p);tog($('oCtl'),'hide',!p);
+  txt=st==='live'?'Connected to '+Obd.name+'. Reading the car.':st==='init'?'Connected to '+Obd.name+'. '+(Obd.err||'Starting up the adapter.'):st==='connecting'?'Connecting to '+Obd.name+'.':(Obd.err||'Not connected.');
+  $('oStatus').textContent=txt;tog($('oOff'),'hide',st==='off');
+  var kv=[['Speed',Obd.state==='live'&&live.src==='obd'&&live.target!==null?Math.round(live.target)+' km/h':'--'],['Engine speed',live.rpm!==null?commas(live.rpm)+' rpm':'--'],
+    ['Coolant',live.cool!==null?Math.round(live.cool)+' °C':'--'],['Fuel level',live.fuel!==null?Math.round(live.fuel)+' %':'--'],
+    ['Engine load',live.load!==null?Math.round(live.load)+' %':'--'],['Battery',live.volt!==null?live.volt.toFixed(1)+' V':'--'],
+    ['Check engine',live.mil===null?'--':(live.mil?'On':'Off')]],h='',i;
+  for(i=0;i<kv.length;i++)h+='<div><span>'+kv[i][0]+'</span><b>'+kv[i][1]+'</b></div>';
+  $('oKv').innerHTML=h;
+}
+$('stObd').onclick=function(){renderObd();openSheet('shObd');};
+$('sObd').onclick=function(){renderObd();openSheet('shObd');};
+$('oScan').onclick=function(){
+  var p=obdPlugin();if(!p)return;
+  p.listPaired().then(function(r){
+    var d=(r&&r.devices)||[],h='',i;
+    if(!d.length)h='<p>No paired devices. Pair the OBD adapter in Android Bluetooth settings, then come back.</p>';
+    for(i=0;i<d.length;i++)h+='<div class="rowl"><div class="nm"><b>'+esc(d[i].name||'Unnamed device')+'</b><span>'+esc(d[i].address)+'</span></div><button class="btn" data-addr="'+esc(d[i].address)+'" data-name="'+esc(d[i].name||'adapter')+'">Connect</button></div>';
+    $('oList').innerHTML=h;
+  })['catch'](function(e){toast((e&&e.message)||'Could not read Bluetooth devices');});
+};
+$('oList').onclick=function(e){var a=e.target.getAttribute('data-addr');if(a)obdConnect({type:'bt',address:a,name:e.target.getAttribute('data-name')});};
+$('oTcp').onclick=function(){obdConnect({type:'tcp',host:trim($('oHost').value)||'192.168.0.10',port:Math.round(num($('oPort').value,35000)),name:'Wi-Fi adapter'});};
+$('oOff').onclick=function(){var p=obdPlugin();state.set.obd=null;save();if(p)p.disconnect()['catch'](function(){});obdDrop('');toast('Adapter disconnected');};
+
+/* ---------- demo drive ---------- */
+var demoT=null,demoS=0,demoV=0,demoX=0,demoY=0,demoH=40;
+function setDemo(on){
+  if(on===demoOn)return;demoOn=on;clearInterval(demoT);
+  $('sDemo').textContent=on?'Stop demo drive':'Start demo drive';
+  live.t=0;live.target=on?0:null;live.acc=0;shown={};
+  if(on){demoS=0;demoV=0;demoX=0;demoY=0;trailPts=[];trail0=null;
+    demoT=setInterval(function(){
+      demoS+=0.25;var s=demoS%64,tgt=s<12?64:s<22?64:s<27?22:s<40?86:s<50?48:s<58?0:30;
+      demoV+=Math.max(-5,Math.min(3.2,(tgt-demoV)*0.22));if(demoV<0.4)demoV=0;
+      demoH=(40+50*Math.sin(demoS/9)+360)%360;live.heading=demoH;live.alt=120+12*Math.sin(demoS/15);
+      var m=demoV/3.6*0.25,r=demoH*Math.PI/180;demoX+=m*Math.sin(r);demoY+=m*Math.cos(r);trailXY(demoX,demoY);
+      live.rpm=800+demoV*31+(s<12?600:0);live.cool=Math.min(89,60+demoS*1.2);live.fuel=62;live.volt=13.9;live.mil=false;live.dtc=0;live.load=20+demoV*0.5;
+      live.lights.low=isNight;live.lights.high=false;live.lights.fog=false;live.lights.haz=(s>52&&s<58);
+      feed('demo',demoV,Date.now());
+    },250);
+    toast('Demo drive running. Trip and odometer count as if you were driving.');
+  }else{live.lights={low:null,high:null,fog:null,haz:null};live.rpm=live.cool=live.fuel=live.volt=live.mil=live.load=null;live.heading=null;live.alt=null;trailPts=[];trail0=null;trailDirty=true;drawTrail();}
+}
+$('sDemo').onclick=function(){setDemo(!demoOn);closeSheets();};
+
+/* ---------- trail (path driven so far) ---------- */
+var trailPts=[],trail0=null,trailDirty=true;
+function trailAdd(lat,lon){
+  if(!trail0)trail0={lat:lat,lon:lon};
+  var r=Math.PI/180;trailXY((lon-trail0.lon)*r*6371000*Math.cos(trail0.lat*r),(lat-trail0.lat)*r*6371000);
+}
+function trailXY(x,y){
+  var n=trailPts.length,l=n?trailPts[n-1]:null;
+  if(l&&Math.abs(x-l[0])+Math.abs(y-l[1])<8)return;
+  trailPts.push([x,y]);if(n>500)trailPts.splice(0,n-500);trailDirty=true;
+}
+function drawTrail(){
+  var cv=$('trailCv'),box=$('trail');if(!cv||!box.clientWidth)return;
+  var dpr=Math.min(2,window.devicePixelRatio||1),w=box.clientWidth,h=box.clientHeight;
+  if(cv.width!==Math.round(w*dpr)||cv.height!==Math.round(h*dpr)){cv.width=Math.round(w*dpr);cv.height=Math.round(h*dpr);trailDirty=true;}
+  if(!trailDirty)return;trailDirty=false;
+  var g=cv.getContext('2d'),i,acc=getComputedStyle(document.documentElement).getPropertyValue('--acc')||'#1fd0f0';
+  g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,w,h);
+  g.strokeStyle='rgba(255,255,255,.05)';g.lineWidth=1;g.beginPath();
+  for(i=1;i<6;i++){g.moveTo(i*w/6,0);g.lineTo(i*w/6,h);}for(i=1;i<4;i++){g.moveTo(0,i*h/4);g.lineTo(w,i*h/4);}g.stroke();
+  if(trailPts.length<2){var msg='Your route appears here as you drive',fs=Math.max(11,Math.round(parseFloat(document.documentElement.style.fontSize||'10')*1.5));g.fillStyle='#5f747e';g.textAlign='center';g.font='500 '+fs+'px "Barlow Cond",sans-serif';
+    var mw=g.measureText(msg).width;if(mw>w-24){fs=Math.floor(fs*(w-24)/mw);g.font='500 '+fs+'px "Barlow Cond",sans-serif';}g.fillText(msg,w/2,h/2);return;}
+  var a=1e9,b=-1e9,c=1e9,d=-1e9,p;
+  for(i=0;i<trailPts.length;i++){p=trailPts[i];if(p[0]<a)a=p[0];if(p[0]>b)b=p[0];if(p[1]<c)c=p[1];if(p[1]>d)d=p[1];}
+  var sx=Math.max(b-a,150),sy=Math.max(d-c,150),pd=22,sc=Math.min((w-2*pd)/sx,(h-2*pd)/sy),ox=w/2-(a+b)/2*sc,oy=h/2+(c+d)/2*sc;
+  g.lineJoin='round';g.lineCap='round';
+  g.strokeStyle=acc;g.globalAlpha=.25;g.lineWidth=9;g.beginPath();for(i=0;i<trailPts.length;i++){p=trailPts[i];if(i)g.lineTo(ox+p[0]*sc,oy-p[1]*sc);else g.moveTo(ox+p[0]*sc,oy-p[1]*sc);}g.stroke();
+  g.globalAlpha=1;g.lineWidth=3.5;g.stroke();
+  p=trailPts[trailPts.length-1];var q=trailPts[trailPts.length-2],ang=Math.atan2(p[0]-q[0],p[1]-q[1]);
+  g.save();g.translate(ox+p[0]*sc,oy-p[1]*sc);g.rotate(ang);g.fillStyle='#fff';g.strokeStyle=acc;g.lineWidth=2;
+  g.beginPath();g.moveTo(0,-11);g.lineTo(8,9);g.lineTo(0,5);g.lineTo(-8,9);g.closePath();g.fill();g.stroke();g.restore();
+}
+function compass(h){return ['N','NE','E','SE','S','SW','W','NW'][Math.round(h/45)%8];}
+
+/* ---------- night / sunset ---------- */
+var isNight=false,lightReminded=false;
+function sunUT(lat,lon,d,rise){
+  var r=Math.PI/180,N=Math.floor((Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate())-Date.UTC(d.getUTCFullYear(),0,0))/864e5);
+  var lh=lon/15,t=N+((rise?6:18)-lh)/24,M=0.9856*t-3.289;
+  var L=(M+1.916*Math.sin(M*r)+0.02*Math.sin(2*M*r)+282.634+720)%360;
+  var RA=(Math.atan(0.91764*Math.tan(L*r))/r+360)%360;RA=(RA+Math.floor(L/90)*90-Math.floor(RA/90)*90)/15;
+  var sd=0.39782*Math.sin(L*r),cd=Math.cos(Math.asin(sd)),ch=(Math.cos(90.833*r)-sd*Math.sin(lat*r))/(cd*Math.cos(lat*r));
+  if(ch>1||ch<-1)return null;
+  var H=(rise?360-Math.acos(ch)/r:Math.acos(ch)/r)/15;
+  return ((H+RA-0.06571*t-6.622-lh)%24+24)%24;
+}
+function calcNight(){
+  var d=new Date(),n,th=state.set.theme;
+  if(live.lat!==null){var up=sunUT(live.lat,live.lon,d,true),dn=sunUT(live.lat,live.lon,d,false),u=d.getUTCHours()+d.getUTCMinutes()/60;
+    if(up===null||dn===null)n=false;else n=up<dn?(u<up||u>dn):(u>dn&&u<up);}
+  else{var hh=d.getHours()+d.getMinutes()/60;n=hh>=18.5||hh<6;}
+  isNight=n;tog(document.body,'night',th==='night'||(th==='auto'&&n));
+}
+
+/* ---------- render loop ---------- */
+var shown={},ambKey='',lastBeep=0,audioCtx=null,laneOff=0;
+function setTxt(id,v){if(shown[id]!==v){shown[id]=v;$(id).textContent=v;}}
+function beep(){
+  if(!+state.set.beep)return;
+  try{audioCtx=audioCtx||new (window.AudioContext||window.webkitAudioContext)();var o=audioCtx.createOscillator(),g=audioCtx.createGain(),t=audioCtx.currentTime;
+    o.frequency.value=880;g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(0.25,t+0.02);g.gain.exponentialRampToValueAtTime(0.0001,t+0.25);
+    o.connect(g);g.connect(audioCtx.destination);o.start(t);o.stop(t+0.3);}catch(e){}
+}
+function frame(){
+  var c=car(),now=Date.now(),corr=c?1+(+c.corr||0)/100:1,max=dialMax(),has2=live.target!==null;
+  if(!demoOn&&live.target!==null&&live.t&&now-live.t>6000){live.target=null;live.t=0;live.acc=0;live.decel=false;}
+  if(live.gps==='ok'&&now-gpsLast>8000)live.gps='search';
+  var tgt=has2?toDisp(live.target*corr):0;
+  live.disp+=(tgt-live.disp)*0.14;if(Math.abs(tgt-live.disp)<0.05)live.disp=tgt;
+  setTxt('spd',has2?String(Math.round(live.disp)):'--');
+  var frac=Math.max(0,Math.min(1,live.disp/max)),fk=Math.round(frac*1000);
+  if(shown.fk!==fk){shown.fk=fk;var da=f1(ARC*frac)+' '+f1(C);$('dFill').setAttribute('stroke-dasharray',da);$('dGlow').setAttribute('stroke-dasharray',da);}
+  var lim=+state.set.limit,over=lim>0&&has2&&Math.round(live.disp)>lim;
+  if(shown.over!==over){shown.over=over;tog(document.body,'over',over);}
+  if(over&&now-lastBeep>6000){lastBeep=now;beep();}
+  var ak=over?'255,59,78':(!has2?'127,152,164':(live.acc>=4.5?'74,140,255':'46,214,170'));
+  if(ak!==ambKey){ambKey=ak;document.documentElement.style.setProperty('--amb','rgb('+ak+')');}
+  if(has2&&live.target>0.5){laneOff-=live.target*0.012;if(laneOff<-26)laneOff+=26;var lo=f1(laneOff);$('laneL').setAttribute('stroke-dashoffset',lo);$('laneR').setAttribute('stroke-dashoffset',lo);}
+  var br=has2&&live.decel&&live.target>1;if(shown.br!==br){shown.br=br;tog($('rcar'),'braking',br);}
+  requestAnimationFrame(frame);
+}
+function gauge(id,vid,frac,txt,cls){
+  var k=id+Math.round((frac||0)*100)+txt+cls;if(shown[id]===k)return;shown[id]=k;
+  var el=$(id);el.setAttribute('stroke-dasharray',frac===null?'0 999':f1(GL*Math.max(0.02,Math.min(1,frac)))+' 999');
+  el.setAttribute('class','g-fill'+(cls?' '+cls:'')+(frac===null?' hide':''));$(vid).textContent=txt;
+}
+function slowTick(){
+  var d=new Date(),c=car(),tr=state.trip,u=mph()?'mph':'km/h';
+  setTxt('clk',pad2(d.getHours())+':'+pad2(d.getMinutes()));
+  setTxt('date',['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()]+', '+d.getDate()+' '+['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()]+' '+d.getFullYear());
+  setTxt('sOdo',c?commas(c.odo||0):'--');setTxt('sTrip',tr.dist.toFixed(1));
+  setTxt('sAvg',tr.moving>5?String(Math.round(toDisp(tr.dist/(tr.moving/3600)))):'0');setTxt('sMax',String(Math.round(toDisp(tr.max))));
+  setTxt('rpm',live.rpm!==null?commas(live.rpm)+' rpm':'');
+  gauge('gTemp','gTempV',live.cool===null?null:(live.cool-40)/80,live.cool===null?'':Math.round(live.cool)+'°',live.cool!==null&&live.cool>=108?'hot':'');
+  gauge('gFuel','gFuelV',live.fuel===null?null:live.fuel/100,live.fuel===null?'':Math.round(live.fuel)+'%',live.fuel!==null&&live.fuel<15?'low':'');
+  /* status pills */
+  var g=$('stGps'),gs=live.gps,gt={ok:'GPS ready',search:'Finding GPS',weak:'GPS weak',denied:'GPS blocked',none:'No GPS',off:'GPS off'}[gs];
+  g.className='pill'+(gs==='ok'?' on':gs==='search'||gs==='weak'?' wait':gs==='denied'?' bad':'');setTxt2(g,gt);
+  var o=$('stObd'),os=Obd.state;o.className='pill'+(os==='live'?' on':os==='off'?'':' wait');setTxt2(o,os==='live'?'OBD live':os==='off'?'OBD off':'OBD starting');
+  var src=activeSrc(),sl=demoOn?'Demo drive':(live.target===null?'Waiting for speed':(src==='obd'?'Speed from the car (OBD)':'Speed from GPS'));
+  var extra='';if(c&&c.service>0){var left=c.service-(c.odo||0);extra='<br>'+(left>=0?'Service in <b>'+commas(left)+' km</b>':'<b style="color:var(--warn)">Service overdue '+commas(-left)+' km</b>');}
+  var sb=sl+extra;if(shown.srcb!==sb){shown.srcb=sb;$('srcb').innerHTML=sb;}
+  var hd=(live.heading!==null?'<b>'+compass(live.heading)+' '+Math.round(live.heading)+'°</b>':'')+(live.alt!==null?' &nbsp; '+Math.round(live.alt)+' m':'');
+  if(shown.hd!==hd){shown.hd=hd;$('trailHd').innerHTML=hd;}
+  drawTrail();renderTT();
+  if(isNight&&!lightReminded&&live.target!==null&&live.target>10&&live.lights.low===null){lightReminded=true;toast('It is dark outside. Check that your headlights are on.');say('It is dark outside. Check that your headlights are on.');}
+  if($('shObd').classList.contains('show'))renderObd();
+  if($('shSettings').classList.contains('show'))renderTripKv();
+  if(dirty&&d.getSeconds()%10===0)save();
+}
+function setTxt2(pill,t){var s=pill.lastChild;if(s.textContent!==t)s.textContent=t;}
+function renderTripKv(){
+  var tr=state.trip,c=car(),u=mph()?'mph':'km/h',fuel='--',cost='--';
+  if(c&&c.kmpl>0){var l=tr.dist/c.kmpl;fuel=l.toFixed(1)+' L';if(+state.set.price>0)cost=(state.set.cur||'')+' '+commas(l*state.set.price);}
+  var kv=[['Distance',tr.dist.toFixed(1)+' km'],['Moving time',fmtTime(tr.moving)],['Average',(tr.moving>5?Math.round(toDisp(tr.dist/(tr.moving/3600))):0)+' '+u],
+    ['Top speed',Math.round(toDisp(tr.max))+' '+u],['Smooth driving',tr.moving>30?Math.round(tr.smooth/tr.moving*100)+' %':'--'],['Fuel used (estimate)',fuel],['Fuel cost (estimate)',cost]],h='',i;
+  for(i=0;i<kv.length;i++)h+='<div><span>'+kv[i][0]+'</span><b>'+kv[i][1]+'</b></div>';
+  $('tripKv').innerHTML=h;
+}
+
+/* ---------- music ---------- */
+var audio=$('audio'),tracks=[],tIdx=-1,shuf=false,rep=0;
+function mUpdate(){
+  var t=tracks[tIdx];
+  $('mTitle').textContent=t?t.name:'No music yet';
+  $('mSub').textContent=t?('Song '+(tIdx+1)+' of '+tracks.length):'Add songs from this device';
+  $('mPlay').innerHTML=icon(!audio.paused&&t?'pause':'play');
+  tog($('mShuf'),'act',shuf);tog($('mShuf'),'dimi',!shuf);tog($('mRep'),'act',rep>0);tog($('mRep'),'dimi',rep===0);
+  mList();
+}
+function mList(){
+  var h='',i;if(!tracks.length)h='<p>No songs yet. Add music files stored on this device or a USB drive.</p>';
+  for(i=0;i<tracks.length;i++)h+='<div class="rowl'+(i===tIdx?' cur':'')+'"><div class="nm"><b>'+esc(tracks[i].name)+'</b></div><button class="btn'+(i===tIdx?' pri':'')+'" data-i="'+i+'">'+(i===tIdx&&!audio.paused?'Playing':'Play')+'</button></div>';
+  $('mList').innerHTML=h;
+}
+function mPlayAt(i){if(!tracks.length)return;tIdx=(i+tracks.length)%tracks.length;audio.src=tracks[tIdx].url;var p=audio.play();if(p&&p['catch'])p['catch'](function(){});mUpdate();}
+function mToggle(){if(!tracks.length){openSheet('shMusic');return;}if(tIdx<0){mPlayAt(0);return;}if(audio.paused){var p=audio.play();if(p&&p['catch'])p['catch'](function(){});}else audio.pause();}
+function mNext(auto){if(!tracks.length)return;if(auto&&rep===2){mPlayAt(tIdx);return;}
+  if(shuf&&tracks.length>1){var n;do{n=Math.floor(Math.random()*tracks.length);}while(n===tIdx);mPlayAt(n);return;}
+  if(auto&&rep===0&&tIdx===tracks.length-1){audio.pause();mUpdate();return;}mPlayAt(tIdx+1);}
+function mPrev(){if(!tracks.length)return;if(audio.currentTime>4){audio.currentTime=0;return;}mPlayAt(tIdx-1);}
+$('mPlay').onclick=mToggle;$('mNext').onclick=function(){mNext(false);};$('mPrev').onclick=mPrev;
+$('mShuf').onclick=function(){shuf=!shuf;mUpdate();toast(shuf?'Shuffle on':'Shuffle off');};
+$('mRep').onclick=function(){rep=(rep+1)%3;mUpdate();toast(['Repeat off','Repeat all songs','Repeat this song'][rep]);};
+$('mAdd').onclick=function(){$('mFiles').click();};
+$('mFiles').onchange=function(){
+  var f=this.files,i,n=0;for(i=0;i<f.length;i++){if(/^audio\//.test(f[i].type)||/\.(mp3|m4a|aac|ogg|oga|opus|wav|flac|wma)$/i.test(f[i].name)){tracks.push({name:f[i].name.replace(/\.[^.]+$/,''),url:URL.createObjectURL(f[i])});n++;}}
+  this.value='';toast(n?n+' song'+(n>1?'s':'')+' added':'No music files were chosen');if(n&&tIdx<0)mPlayAt(0);else mUpdate();
+};
+$('mList').onclick=function(e){var i=e.target.getAttribute('data-i');if(i!==null&&i!=='')mPlayAt(+i);};
+audio.onplay=audio.onpause=mUpdate;audio.onended=function(){mNext(true);};
+audio.onerror=function(){if(tracks.length&&tIdx>=0)toast('This song could not be played');};
+audio.ontimeupdate=function(){var d=audio.duration||0;$('mFill').style.width=(d?audio.currentTime/d*100:0)+'%';$('mCur').textContent=fmtTime(audio.currentTime);$('mDur').textContent=fmtTime(d);};
+$('mBar').onclick=function(e){var r=this.getBoundingClientRect();if(audio.duration)audio.currentTime=Math.max(0,Math.min(1,(e.clientX-r.left)/r.width))*audio.duration;};
+
+/* ---------- navigation ---------- */
+function navigate(q){
+  q=trim(q);if(!q)return;
+  var i;for(i=state.recent.length-1;i>=0;i--)if(state.recent[i].toLowerCase()===q.toLowerCase())state.recent.splice(i,1);
+  state.recent.unshift(q);if(state.recent.length>6)state.recent.length=6;save();
+  $('banner').className='banner go';$('bTitle').textContent=q;$('bSub').textContent='Guidance is running in Google Maps';
+  var u='https://www.google.com/maps/dir/?api=1&destination='+encodeURIComponent(q)+'&travelmode=driving&dir_action=navigate';
+  say('Starting navigation to '+q+'.');
+  if(window.DRIVORA_TEST){window.DRIVORA_TEST.push(u);return;}
+  if(window.Capacitor&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform())window.location.href=u;else window.open(u,'_blank');
+}
+function renderPlaces(){
+  var h='',i,c='';
+  if(!state.places.length)h='<p>No saved places yet.</p>';
+  for(i=0;i<state.places.length;i++){h+='<div class="rowl"><div class="nm"><b>'+esc(state.places[i].n)+'</b><span>'+esc(state.places[i].q)+'</span></div><button class="btn pri" data-go="'+i+'">Go</button><button class="btn ghost" data-del="'+i+'">Remove</button></div>';
+    if(i<3)c+='<button class="chip" data-p="'+i+'">'+esc(state.places[i].n)+'</button>';}
+  $('pList').innerHTML=h;h='';
+  if(!state.recent.length)h='<p>Places you navigate to show up here.</p>';
+  for(i=0;i<state.recent.length;i++)h+='<div class="rowl"><div class="nm"><b>'+esc(state.recent[i])+'</b></div><button class="btn" data-r="'+i+'">Go</button></div>';
+  $('rList').innerHTML=h;
+  $('chips').innerHTML=c+'<button class="chip" data-p="all">'+(state.places.length?'All places':'Save a place')+'</button>';
+}
+$('chips').onclick=function(e){var p=e.target.getAttribute('data-p');if(p==='all'){renderPlaces();openSheet('shPlaces');}else if(p!==null&&state.places[+p])navigate(state.places[+p].q);};
+$('pAdd').onclick=function(){var n=trim($('pName').value),q=trim($('pQ').value);if(!n||!q){toast('Enter both a name and a place');return;}state.places.push({n:n,q:q});save();$('pName').value='';$('pQ').value='';renderPlaces();toast('Saved '+n);};
+$('pList').onclick=function(e){var g=e.target.getAttribute('data-go'),d=e.target.getAttribute('data-del');if(g!==null){closeSheets();navigate(state.places[+g].q);}else if(d!==null){state.places.splice(+d,1);save();renderPlaces();}};
+$('rList').onclick=function(e){var r=e.target.getAttribute('data-r');if(r!==null){closeSheets();navigate(state.recent[+r]);}};
+function destGo(){var v=trim($('dest').value);if(!v){toast('Type a place first');return;}$('dest').value='';$('dest').blur();navigate(v);}
+$('destGo').onclick=destGo;$('dest').onkeydown=function(e){if(e.keyCode===13)destGo();};
+
+/* ---------- assistant: command router (the AI agent plugs in here later) ---------- */
+function runCommand(raw){
+  var t=trim(raw),l=t.toLowerCase().replace(/[.!?]+$/,''),m,i;
+  if(!t)return '';
+  if((m=/^(?:navigate to|navigate|go to|take me to|drive to|directions to)\s+(.+)$/i.exec(t))){
+    for(i=0;i<state.places.length;i++)if(state.places[i].n.toLowerCase()===trim(m[1]).toLowerCase()){navigate(state.places[i].q);return 'nav';}
+    navigate(m[1]);return 'nav';}
+  for(i=0;i<state.places.length;i++)if(state.places[i].n.toLowerCase()===l){navigate(state.places[i].q);return 'nav';}
+  if(/^(play|resume)( music| song)?$/.test(l)){if(!tracks.length){say('There is no music yet. Add songs first.');openSheet('shMusic');}else{if(audio.paused)mToggle();say('Playing music.');}return 'play';}
+  if(/^(pause|stop)( music| song)?$/.test(l)){audio.pause();say('Music paused.');return 'pause';}
+  if(/^(next|skip)( song| track)?$/.test(l)){mNext(false);say('Next song.');return 'next';}
+  if(/^(prev|previous|back|last)( song| track)?$/.test(l)){mPrev();say('Previous song.');return 'prev';}
+  if(/^shuffle( on| off)?$/.test(l)){shuf=!/off$/.test(l);mUpdate();say(shuf?'Shuffle is on.':'Shuffle is off.');return 'shuffle';}
+  if((m=/^(?:speed )?limit (?:to )?(off|\d{2,3})$/.exec(l))){state.set.limit=m[1]==='off'?0:+m[1];save();updLimitMark();say(state.set.limit?'I will warn you above '+state.set.limit+'.':'Speed limit warning is off.');return 'limit';}
+  if((m=/^(?:theme|colou?r)(?: to)? ([a-z]+)$/.exec(l))&&THEMES[m[1]]){setAcc(THEMES[m[1]],true);say('Theme set to '+m[1]+'.');return 'theme';}
+  if(/^(reset|clear|new) trip$/.test(l)){resetTrip();say('Trip reset.');return 'trip';}
+  if(/^(hud|hud mode|full ?screen)$/.test(l)){setHud(true);return 'hud';}
+  if(/^(exit|close|leave) hud$/.test(l)){setHud(false);return 'hud';}
+  if(/^mirror( on| off)?$/.test(l)){tog(document.body,'mirror',!/off$/.test(l));return 'mirror';}
+  if(/^(demo|start demo|demo drive)$/.test(l)){setDemo(true);say('Demo drive started.');return 'demo';}
+  if(/^(stop demo|end demo)$/.test(l)){setDemo(false);say('Demo drive stopped.');return 'demo';}
+  if(/^(how fast|speed|what is my speed)$/.test(l)){say(live.target===null?'I have no speed reading yet.':'You are doing '+Math.round(live.disp)+' '+(mph()?'miles':'kilometres')+' per hour.');return 'speed';}
+  if(/^(trip|how far)$/.test(l)){say('This trip is '+state.trip.dist.toFixed(1)+' kilometres so far.');return 'tripq';}
+  if(/^(help|what can you do)$/.test(l)){say('Try: go to Kandy, play, next, limit 70, theme red, reset trip, HUD.');return 'help';}
+  say('Did you mean a place? Confirm to start navigation.');
+  confirmBar('Navigate to "'+t+'"?','Start',function(){navigate(t);});
+  return 'ask';
+}
+function cmdGo(){var v=$('cmd').value;$('cmd').value='';$('cmd').blur();if(trim(v))runCommand(v);}
+$('cmdGo').onclick=cmdGo;$('cmd').onkeydown=function(e){if(e.keyCode===13)cmdGo();};
+(function(){
+  var SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR)return;
+  var mic=$('mic');mic.classList.remove('hide');$('cmdGo').classList.add('hide');
+  $('cmd').oninput=function(){var e=!trim(this.value);tog(mic,'hide',!e);tog($('cmdGo'),'hide',e);};
+  mic.onclick=function(){
+    var r;try{r=new SR();}catch(e){return;}
+    r.lang='en-US';r.interimResults=false;$('orb').classList.add('busy');say('Listening.');
+    r.onresult=function(e){var t=e.results[0][0].transcript;say(t);runCommand(t);};
+    r.onerror=function(){say('I could not hear that. Type it instead.');};
+    r.onend=function(){$('orb').classList.remove('busy');};
+    try{r.start();}catch(e2){$('orb').classList.remove('busy');}
+  };
+})();
+
+/* ---------- HUD mode, dock, settings ---------- */
+function setHud(on){tog(document.body,'hud',on);if(!on)document.body.classList.remove('mirror');closeSheets();layout(true);if(on)toast('HUD mode. Tap the dial to go back.');}
+$('hudExit').onclick=function(){setHud(false);};
+$('hudMirror').onclick=function(){document.body.classList.toggle('mirror');};
+(function(){var b=document.querySelectorAll('.dk'),i;for(i=0;i<b.length;i++)b[i].onclick=dock;})();
+function dock(){
+  var g=this.getAttribute('data-go');
+  if(g==='home')closeSheets();
+  else if(g==='places'){renderPlaces();openSheet('shPlaces');}
+  else if(g==='music'){mList();openSheet('shMusic');}
+  else if(g==='garage'){renderGarage();openSheet('shGarage');}
+  else if(g==='hud')setHud(true);
+  else if(g==='settings'){openSettings();}
+}
+/* ---------- colour circle: angle = hue, distance from centre = strength ---------- */
+function hsv2rgb(h,s){
+  var x=s*(1-Math.abs((h/60)%2-1)),m=1-s,i=Math.floor(h/60)%6,r,g,b;
+  if(i===0){r=s;g=x;b=0;}else if(i===1){r=x;g=s;b=0;}else if(i===2){r=0;g=s;b=x;}else if(i===3){r=0;g=x;b=s;}else if(i===4){r=x;g=0;b=s;}else{r=s;g=0;b=x;}
+  return [Math.round((r+m)*255),Math.round((g+m)*255),Math.round((b+m)*255)];
+}
+function rgb2hs(r,g,b){var mx=Math.max(r,g,b),mn=Math.min(r,g,b),d=mx-mn,h=0;
+  if(d){if(mx===r)h=((g-b)/d)%6;else if(mx===g)h=(b-r)/d+2;else h=(r-g)/d+4;h*=60;if(h<0)h+=360;}
+  return [h,mx?d/mx:0];}
+var cwDrawn=false;
+function cwDraw(){
+  if(cwDrawn)return;cwDrawn=true;
+  var cv=$('cwCv'),n=cv.width,R=n/2,g=cv.getContext('2d'),im=g.createImageData(n,n),d=im.data,x,y,dx,dy,q,c,o;
+  for(y=0;y<n;y++)for(x=0;x<n;x++){dx=x+0.5-R;dy=y+0.5-R;q=Math.sqrt(dx*dx+dy*dy)/R;o=(y*n+x)*4;
+    if(q>1.02){d[o+3]=0;continue;}
+    c=hsv2rgb((Math.atan2(-dy,dx)*180/Math.PI+360)%360,Math.min(1,q));d[o]=c[0];d[o+1]=c[1];d[o+2]=c[2];d[o+3]=255;}
+  g.putImageData(im,0,0);
+}
+function curAcc(){var c=car();return themeRgb(c&&c.acc?c.acc:state.set.acc);}
+function cwMark(){
+  var p=curAcc().split(','),hs=rgb2hs(+p[0],+p[1],+p[2]),a=hs[0]*Math.PI/180,dot=$('cwDot');
+  dot.style.left=(50+50*hs[1]*Math.cos(a))+'%';dot.style.top=(50-50*hs[1]*Math.sin(a))+'%';
+  segSet($('sAcc'),curAcc());
+  $('cwNote').textContent=car()?'Drag on the circle to pick any colour. It is saved for '+carName(car())+'.':'Drag on the circle to pick any colour.';
+}
+function setAcc(rgb,keep){var c=car();if(c)c.acc=rgb;state.set.acc=rgb;applyTheme(rgb);cwMark();if(keep)save();else dirty=true;}
+(function(){
+  var el=$('cw'),down=false;
+  function at(e){
+    var t=e.touches&&e.touches.length?e.touches[0]:(e.changedTouches&&e.changedTouches.length?e.changedTouches[0]:e),r=el.getBoundingClientRect(),R=r.width/2;
+    var dx=t.clientX-r.left-R,dy=t.clientY-r.top-R,q=Math.min(1,Math.sqrt(dx*dx+dy*dy)/R);
+    if(has(document.body,'mirror'))dy=-dy;
+    setAcc(hsv2rgb((Math.atan2(-dy,dx)*180/Math.PI+360)%360,q).join(','),false);
+  }
+  function start(e){down=true;at(e);if(e.cancelable)e.preventDefault();}
+  function move(e){if(!down)return;at(e);if(e.cancelable)e.preventDefault();}
+  function end(){if(down){down=false;save();}}
+  el.addEventListener('touchstart',start,{passive:false});el.addEventListener('touchmove',move,{passive:false});el.addEventListener('touchend',end);el.addEventListener('touchcancel',end);
+  el.addEventListener('mousedown',start);window.addEventListener('mousemove',move);window.addEventListener('mouseup',end);
+})();
+$('sAcc').onpick=function(v){setAcc(v,true);};
+function openSettings(){
+  cwDraw();cwMark();
+  var s=state.set;segSet($('sUnit'),s.unit);segSet($('sSrc'),s.src);segSet($('sLimit'),s.limit);segSet($('sBeep'),+s.beep?1:0);segSet($('sTheme'),s.theme);
+  $('sPrice').value=s.price||'';$('sCur').value=s.cur||'';renderTripKv();openSheet('shSettings');
+}
+$('sUnit').onpick=function(v){state.set.unit=v;save();buildDial();};
+$('sSrc').onpick=function(v){state.set.src=v;save();};
+$('sLimit').onpick=function(v){state.set.limit=+v;save();updLimitMark();};
+$('sBeep').onpick=function(v){state.set.beep=+v;save();if(+v){lastBeep=0;beep();}};
+$('sTheme').onpick=function(v){state.set.theme=v;save();calcNight();};
+$('sPrice').onchange=function(){state.set.price=Math.max(0,num(this.value,0));save();renderTripKv();};
+$('sCur').onchange=function(){state.set.cur=trim(this.value);save();renderTripKv();};
+$('sReset').onclick=function(){confirmBar('Reset this trip to zero?','Reset',function(){resetTrip();renderTripKv();});};
+
+/* ---------- start ---------- */
+load();
+layout(true);renderCar();buildDial();renderPlaces();mUpdate();calcNight();slowTick();
+setInterval(slowTick,1000);setInterval(calcNight,60000);
+requestAnimationFrame(frame);
+startGps();
+window.addEventListener('pagehide',save);
+document.addEventListener('visibilitychange',function(){if(document.hidden)save();});
+try{if(navigator.wakeLock){var wl=function(){navigator.wakeLock.request('screen')['catch'](function(){});};wl();document.addEventListener('visibilitychange',function(){if(!document.hidden)wl();});}}catch(e){}
+if(state.set.obd&&obdPlugin()){setTimeout(function(){obdConnect(state.set.obd,true);},1500);
+  setInterval(function(){if(Obd.state==='off'&&state.set.obd)obdConnect(state.set.obd,true);},25000);}
+if(!state.cars.length&&location.hash!=='#demo')setTimeout(function(){editCar(null);},400);
+if(location.hash==='#demo')setDemo(true);
+
+/* hooks for the AI agent and for tests */
+window.DRIVORA={hsv2rgb:hsv2rgb,rgb2hs:rgb2hs,command:runCommand,navigate:navigate,live:live,state:state,obd:Obd,obdAttach:obdAttach,obdRx:obdRx,obdDrop:obdDrop,obdBytes:obdBytes,setDemo:setDemo,feed:feed,sunUT:sunUT,version:'0.1.0'};
+})();
+</script>
+</body>
+</html>

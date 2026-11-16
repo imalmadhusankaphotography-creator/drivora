@@ -1,0 +1,14 @@
+{
+  "name": "drivora-tools",
+  "private": true,
+  "description": "Build and test helpers. Not needed to build the APK.",
+  "scripts": {
+    "build": "node build.js",
+    "check": "node check-es5.js ../www/index.html",
+    "test": "node test.js"
+  },
+  "devDependencies": {
+    "acorn": "^8.0.0",
+    "puppeteer-core": "^24.0.0"
+  }
+}
