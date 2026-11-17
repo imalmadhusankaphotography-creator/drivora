@@ -325,7 +325,7 @@ body.ptab .right{grid-column:2;grid-row:2;max-width:none}
       <section class="card jar gap">
         <div class="jtop">
           <button class="orb" id="orb" aria-label="Speak a command"></button>
-          <div class="jtxt"><b>Assistant</b><div id="jHeard"></div><div id="jMsg">Tap the mic and speak</div></div>
+          <div class="jtxt"><b>JARVIS</b><div id="jHeard"></div><div id="jMsg">Tap the mic and speak</div></div>
         </div>
         <div class="irow"><input class="inp" id="cmd" placeholder="Or type: go to Kandy" autocomplete="off" enterkeyhint="send"><button class="ib act" id="mic" aria-label="Speak a command" data-ic="mic"></button><button class="btn hide" id="cmdGo">Send</button></div>
       </section>
@@ -371,6 +371,7 @@ body.ptab .right{grid-column:2;grid-row:2;max-width:none}
     <div class="fld"><span class="lbl">Speed source</span><div class="seg" id="sSrc"><button data-v="auto">Automatic (OBD when connected)</button><button data-v="gps">GPS only</button></div></div>
     <div class="fld"><span class="lbl">Speed limit warning</span><div class="seg" id="sLimit"><button data-v="0">Off</button><button data-v="40">40</button><button data-v="50">50</button><button data-v="60">60</button><button data-v="70">70</button><button data-v="100">100</button><button data-v="120">120</button></div></div>
     <div class="fld"><span class="lbl">Warning sound</span><div class="seg" id="sBeep"><button data-v="1">On</button><button data-v="0">Off</button></div></div>
+    <div class="fld"><span class="lbl">Hands-free: say "Hey Jarvis"</span><div class="seg" id="sWake"><button data-v="1">On</button><button data-v="0">Off</button></div></div>
     <div class="fld"><span class="lbl">Voice command language</span><div class="seg" id="sVlang"><button data-v="en-US">English</button><button data-v="si-LK">සිංහල</button></div></div>
     <div class="fld"><span class="lbl">Spoken replies</span><div class="seg" id="sTalk"><button data-v="1">On</button><button data-v="0">Off</button></div></div>
     <div class="fld"><span class="lbl">Screen brightness</span><div class="seg" id="sTheme"><button data-v="auto">Dim after sunset</button><button data-v="day">Always bright</button><button data-v="night">Always dim</button></div></div>
@@ -475,7 +476,7 @@ function icon(n){return '<svg viewBox="0 0 24 24" aria-hidden="true">'+(IC[n]||'
 /* ---------- state ---------- */
 var THEMES={cyan:'31,208,240',red:'255,45,70',amber:'255,176,32',white:'226,238,243',green:'60,255,140',purple:'170,110,255',blue:'60,130,255',pink:'255,90,190',orange:'255,130,40',yellow:'255,225,50'};
 var state={v:1,cars:[],cur:null,trip:{dist:0,moving:0,max:0,smooth:0},
-  set:{unit:'kmh',src:'auto',limit:0,beep:1,theme:'auto',price:0,cur:'Rs',obd:null,acc:'cyan',map:'map',vlang:'en-US',talk:1},places:[],recent:[],pos:null};
+  set:{unit:'kmh',src:'auto',limit:0,beep:1,theme:'auto',price:0,cur:'Rs',obd:null,acc:'cyan',map:'map',vlang:'en-US',talk:1,wake:0},places:[],recent:[],pos:null};
 var dirty=false;
 function load(){
   try{var raw=localStorage.getItem(KEY);if(!raw)return;var s=JSON.parse(raw),k;
@@ -1282,7 +1283,7 @@ function runCommand(raw){
   if(/^mirror(?: on| off)?$/.test(l)){tog(document.body,'mirror',!/off$/.test(l));return 'mirror';}
   if(/^(?:demo|start demo|demo drive)$/.test(l)){setDemo(true);say('Demo drive started.');return 'demo';}
   if(/^(?:stop demo|end demo)$/.test(l)){setDemo(false);say('Demo drive stopped.');return 'demo';}
-  if(/^(?:help|what can you do|commands)$/.test(l)){say('Try: go to Kandy, start, play music, next, what is my speed, show map, limit 70.');return 'help';}
+  if(/^(?:help|what can you do|commands)$/.test(l)){say('Say Hey Jarvis, then: go to Kandy, start, play music, next, what is my speed, show map.');return 'help';}
   say('I did not catch that. Try: go to Kandy, play music, or what is my speed.');
   return 'unknown';
 }
@@ -1298,6 +1299,7 @@ function listenDone(text,err){
 }
 function listen(){
   var p=voicePlugin(),SR=window.SpeechRecognition||window.webkitSpeechRecognition,lang=state.set.vlang||'en-US';
+  if(hfOn){arm();return;} /* already listening all the time: just skip the wake word */
   if(listening){if(p&&p.stop)try{p.stop()['catch'](function(){});}catch(e){}return;}
   if(!p&&!SR){say('Voice works in the installed app. Type your command here instead.',true);return;}
   listening=true;heard('');$('orb').classList.add('busy');say('Listening',true);duck(true);
@@ -1311,6 +1313,44 @@ function listen(){
   try{r.start();}catch(e3){listenDone('','Voice is not available here. Type your command instead.');}
 }
 $('mic').onclick=listen;$('orb').onclick=listen;
+
+/* ---------- hands-free: "Hey Jarvis, play music" ----------
+   The native side keeps listening and sends each sentence it hears. Nothing happens unless the
+   sentence has the wake word in it. "Hey Jarvis" on its own arms the assistant for the next sentence. */
+var WAKE=/(?:^|\s)(?:(?:hey|hi|hay|ok|okay|hello|a|\u0DC4\u0DDA|\u0DC4\u0DD9\u0DBA\u0DD2|\u0DC4\u0DCF\u0DBA\u0DD2)\s+)?(?:jarvis|jarvus|jervis|javis|jarviz|jarvi's|jar vis|\u0DA2\u0DCF\u0DC0\u0DD2\u0DC3\u0DCA|\u0DA2\u0DCF\u0DBB\u0DCA\u0DC0\u0DD2\u0DC3\u0DCA|\u0DA2\u0DCF\u0DC0\u0DD3\u0DC3\u0DCA)(?:[,.!?]|\s|$)/i;
+var hfOn=false,hfBound=false,armedUntil=0,armT=null;
+function wakeSplit(text){var m=WAKE.exec(text);return m?trim(text.substr(m.index+m[0].length)):null;}
+function chime(){
+  try{audioCtx=audioCtx||new (window.AudioContext||window.webkitAudioContext)();var o=audioCtx.createOscillator(),g=audioCtx.createGain(),t=audioCtx.currentTime;
+    o.frequency.setValueAtTime(880,t);o.frequency.setValueAtTime(1320,t+0.09);g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(0.2,t+0.02);g.gain.exponentialRampToValueAtTime(0.0001,t+0.22);
+    o.connect(g);g.connect(audioCtx.destination);o.start(t);o.stop(t+0.25);}catch(e){}
+}
+function idleMsg(){return hfOn?'Say \u201CHey Jarvis\u201D':'Tap the mic and speak';}
+function disarm(){armedUntil=0;clearTimeout(armT);$('orb').classList.remove('busy');duck(false);}
+function arm(){
+  armedUntil=Date.now()+9000;heard('');$('orb').classList.add('busy');duck(true);chime();say('Yes? I am listening.',true);
+  clearTimeout(armT);armT=setTimeout(function(){if(armedUntil){disarm();say(idleMsg(),true);}},9200);
+}
+function onHeard(text){
+  text=trim(text);if(!text)return 'empty';
+  var rest=wakeSplit(text);
+  if(rest===null){
+    if(armedUntil&&Date.now()<armedUntil){disarm();heard(text);runCommand(text);return 'command';}
+    return 'ignored';
+  }
+  if(rest){disarm();heard(text);runCommand(rest);return 'command';}
+  arm();return 'armed';
+}
+function setHandsFree(on,tell){
+  var p=voicePlugin();
+  if(!on){hfOn=false;state.set.wake=0;save();disarm();if(p&&p.stopHandsFree)try{p.stopHandsFree()['catch'](function(){});}catch(e){}if(tell)say('Hands-free is off. Tap the mic to speak.',true);return;}
+  if(!p||!p.startHandsFree){if(tell){say('Hey Jarvis works in the installed app.',true);toast('Hey Jarvis works in the installed app');}if($('sWake'))segSet($('sWake'),0);return;}
+  if(!hfBound){hfBound=true;
+    p.addListener('heard',function(e){if(hfOn)onHeard(e&&e.text);});
+    p.addListener('handsFree',function(e){if(e&&e.on===false){hfOn=false;disarm();say((e.error||'Hands-free listening stopped.'),true);}});}
+  p.startHandsFree({lang:state.set.vlang||'en-US'}).then(function(){hfOn=true;state.set.wake=1;save();if(tell)say('Hands-free is on. Say Hey Jarvis, then your command.');else say(idleMsg(),true);})
+    ['catch'](function(e){hfOn=false;if($('sWake'))segSet($('sWake'),0);say((e&&e.message)||'Could not start hands-free listening.',true);});
+}
 
 /* ---------- HUD mode, dock, settings ---------- */
 function setHud(on){tog(document.body,'hud',on);if(!on)document.body.classList.remove('mirror');closeSheets();layout(true);if(on)toast('HUD mode. Tap the dial to go back.');}
@@ -1369,14 +1409,15 @@ function setAcc(rgb,keep){var c=car();if(c)c.acc=rgb;state.set.acc=rgb;applyThem
 $('sAcc').onpick=function(v){setAcc(v,true);};
 function openSettings(){
   cwDraw();cwMark();
-  var s=state.set;segSet($('sUnit'),s.unit);segSet($('sSrc'),s.src);segSet($('sLimit'),s.limit);segSet($('sBeep'),+s.beep?1:0);segSet($('sVlang'),s.vlang||'en-US');segSet($('sTalk'),+s.talk?1:0);segSet($('sTheme'),s.theme);
+  var s=state.set;segSet($('sUnit'),s.unit);segSet($('sSrc'),s.src);segSet($('sLimit'),s.limit);segSet($('sBeep'),+s.beep?1:0);segSet($('sWake'),hfOn?1:0);segSet($('sVlang'),s.vlang||'en-US');segSet($('sTalk'),+s.talk?1:0);segSet($('sTheme'),s.theme);
   $('sPrice').value=s.price||'';$('sCur').value=s.cur||'';renderTripKv();openSheet('shSettings');
 }
 $('sUnit').onpick=function(v){state.set.unit=v;save();buildDial();};
 $('sSrc').onpick=function(v){state.set.src=v;save();};
 $('sLimit').onpick=function(v){state.set.limit=+v;save();updLimitMark();};
 $('sBeep').onpick=function(v){state.set.beep=+v;save();if(+v){lastBeep=0;beep();}};
-$('sVlang').onpick=function(v){state.set.vlang=v;save();};
+$('sWake').onpick=function(v){setHandsFree(!!+v,true);};
+$('sVlang').onpick=function(v){state.set.vlang=v;save();if(hfOn)setHandsFree(true,false);};
 $('sTalk').onpick=function(v){state.set.talk=+v;save();if(+v)speak('Spoken replies are on.');};
 $('sTheme').onpick=function(v){state.set.theme=v;save();calcNight();};
 $('sPrice').onchange=function(){state.set.price=Math.max(0,num(this.value,0));save();renderTripKv();};
@@ -1396,9 +1437,10 @@ if(state.set.obd&&obdPlugin()){setTimeout(function(){obdConnect(state.set.obd,tr
   setInterval(function(){if(Obd.state==='off'&&state.set.obd)obdConnect(state.set.obd,true);},25000);}
 if(!state.cars.length&&location.hash!=='#demo')setTimeout(function(){editCar(null);},400);
 if(location.hash==='#demo')setDemo(true);
+if(+state.set.wake&&voicePlugin())setTimeout(function(){setHandsFree(true,false);},1200);
 
 /* hooks for the AI agent and for tests */
-window.DRIVORA={setDest:setDest,startNav:startNav,endNav:endNav,listen:listen,mapUrl:mapUrl,music:function(){return {tracks:tracks,idx:tIdx,src:audio.getAttribute('src'),paused:audio.paused};},hsv2rgb:hsv2rgb,rgb2hs:rgb2hs,command:runCommand,navigate:navigate,live:live,state:state,obd:Obd,obdAttach:obdAttach,obdRx:obdRx,obdDrop:obdDrop,obdBytes:obdBytes,setDemo:setDemo,feed:feed,sunUT:sunUT,version:'0.3.0'};
+window.DRIVORA={onHeard:onHeard,setHandsFree:setHandsFree,handsFree:function(){return hfOn;},setDest:setDest,startNav:startNav,endNav:endNav,listen:listen,mapUrl:mapUrl,music:function(){return {tracks:tracks,idx:tIdx,src:audio.getAttribute('src'),paused:audio.paused};},hsv2rgb:hsv2rgb,rgb2hs:rgb2hs,command:runCommand,navigate:navigate,live:live,state:state,obd:Obd,obdAttach:obdAttach,obdRx:obdRx,obdDrop:obdDrop,obdBytes:obdBytes,setDemo:setDemo,feed:feed,sunUT:sunUT,version:'0.4.0'};
 })();
 </script>
 </body>

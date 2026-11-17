@@ -180,6 +180,42 @@ function wait(ms){return new Promise(function(r){setTimeout(r,ms);});}
   await p.evaluate(function(){DRIVORA.state.set.talk=0;DRIVORA.command('time');});
   ok((await p.evaluate(function(){return window._spoken.length;}))===ns,'spoken replies off stays silent');
   await p.evaluate(function(){DRIVORA.command('pause');DRIVORA.endNav();});
+  // hands-free wake word
+  var hf=await p.evaluate(function(){return new Promise(function(done){
+    var V=window.Capacitor.Plugins.Voice,L={},r={};window._spoken=[];DRIVORA.state.set.talk=1;
+    V.addListener=function(n,f){L[n]=f;};V.startHandsFree=function(o){r.lang=o.lang;return Promise.resolve();};V.stopHandsFree=function(){r.stopped=true;return Promise.resolve();};
+    r.before=DRIVORA.onHeard('hey jarvis play music')+'';
+    DRIVORA.setHandsFree(true,true);
+    setTimeout(function(){
+      var T=function(){return document.getElementById('bTitle').textContent;},A=document.getElementById('audio');
+      r.on=DRIVORA.handsFree();r.saved=JSON.parse(localStorage.getItem('drivora.v1')).set.wake;r.idle=window._spoken[window._spoken.length-1];
+      A.pause();L.heard({text:'the radio is talking about play music and go to Kandy'});r.ignored=A.paused+'|'+T();
+      L.heard({text:'Hey Jarvis play music'});r.play=window._spoken[window._spoken.length-1];
+      L.heard({text:'jarvis, go to Kandy'});r.nav=T();
+      L.heard({text:'OK Jarvis what is my speed'});r.speed=window._spoken[window._spoken.length-1];
+      L.heard({text:'හේ ජාවිස් ඊළඟ සින්දුව'});r.si=window._spoken[window._spoken.length-1];
+      var n=window._spoken.length;L.heard({text:'Hey Jarvis'});r.armed=document.getElementById('orb').classList.contains('busy')+'|'+(window._spoken.length===n)+'|'+A.volume;
+      L.heard({text:'cancel navigation'});r.afterArm=T()+'|'+document.getElementById('orb').classList.contains('busy')+'|'+A.volume;
+      L.heard({text:'cancel navigation'});r.notArmed=window._spoken[window._spoken.length-1];
+      r.words=[DRIVORA.onHeard('my service is due'),DRIVORA.onHeard('jarvisville road'),DRIVORA.onHeard('')].join(',');
+      document.getElementById('mic').click();r.micArms=document.getElementById('orb').classList.contains('busy');
+      DRIVORA.setHandsFree(false,true);r.off=!DRIVORA.handsFree()&&r.stopped&&JSON.parse(localStorage.getItem('drivora.v1')).set.wake===0;
+      A.pause();done(r);
+    },150);});});
+  ok(hf.before==='command','wake phrase parser works on its own');
+  ok(hf.on===true&&hf.saved===1&&hf.lang==='si-LK','hands-free starts with the chosen language and is remembered');
+  ok(/Hands-free is on/.test(hf.idle),'turning it on is confirmed aloud');
+  ok(hf.ignored==='true|No destination','speech without the wake word does nothing ('+hf.ignored+')');
+  ok(hf.play==='Playing Ran Tharu.','"Hey Jarvis play music" plays music ('+hf.play+')');
+  ok(hf.nav==='Kandy','"jarvis, go to Kandy" locks the destination');
+  ok(/^You are doing \d+ kilometres per hour\.$/.test(hf.speed)||hf.speed==='I have no speed reading yet.','"OK Jarvis what is my speed" ('+hf.speed+')');
+  ok(/^Next song/.test(hf.si),'Sinhala wake phrase + command ('+hf.si+')');
+  ok(hf.armed==='true|true|0.15','"Hey Jarvis" alone arms: chime only, music turned down ('+hf.armed+')');
+  ok(hf.afterArm==='No destination|false|1','the next sentence is taken as the command, then it disarms ('+hf.afterArm+')');
+  ok(hf.notArmed==='Destination cleared.','same sentence again without the wake word is ignored');
+  ok(hf.words==='ignored,ignored,empty','similar words do not wake it ('+hf.words+')');
+  ok(hf.micArms===true,'mic button while hands-free is on skips the wake word');
+  ok(hf.off===true,'turning hands-free off stops listening and is remembered');
   await p.screenshot({path:'/tmp/t_assistant.png'});
   console.log(errs.length?'ERRORS:\n'+errs.join('\n'):'no page errors');
   console.log(fails?fails+' FAILED':'ALL PASSED');

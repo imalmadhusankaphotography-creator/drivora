@@ -39,7 +39,9 @@ Tests (need Chrome): `cd tools && npm install && npm test`. Screenshots at head-
 
 ## Built-in assistant
 
-A small helper for simple driving tasks: tap the mic (or the round face) and speak, or type.
+A small helper for simple driving tasks, called Jarvis. With hands-free on (Settings), say
+"Hey Jarvis, play music" without touching the screen; "Hey Jarvis" alone makes it wait for the
+next sentence. Or tap the mic, or type.
 It understands English, plus basic Sinhala and Singlish phrases.
 
 - "go to Kandy" / "lock destination to Galle" / "mahanuwarata yamu" - locks the destination and shows the route
