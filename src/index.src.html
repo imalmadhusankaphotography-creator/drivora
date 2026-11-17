@@ -372,6 +372,7 @@ body.ptab .right{grid-column:2;grid-row:2;max-width:none}
     <div class="fld"><span class="lbl">Speed limit warning</span><div class="seg" id="sLimit"><button data-v="0">Off</button><button data-v="40">40</button><button data-v="50">50</button><button data-v="60">60</button><button data-v="70">70</button><button data-v="100">100</button><button data-v="120">120</button></div></div>
     <div class="fld"><span class="lbl">Warning sound</span><div class="seg" id="sBeep"><button data-v="1">On</button><button data-v="0">Off</button></div></div>
     <div class="fld"><span class="lbl">Hands-free: say "Hey Jarvis"</span><div class="seg" id="sWake"><button data-v="1">On</button><button data-v="0">Off</button></div></div>
+    <div class="fld"><span class="lbl">How easily "Hey Jarvis" wakes</span><div class="seg" id="sSens"><button data-v="l">Less</button><button data-v="n">Normal</button><button data-v="h">More</button></div></div>
     <div class="fld"><span class="lbl">Noise cancellation for voice</span><div class="seg" id="sNc"><button data-v="1">On</button><button data-v="0">Off</button></div></div>
     <div class="fld"><span class="lbl">Voice command language</span><div class="seg" id="sVlang"><button data-v="en-US">English</button><button data-v="si-LK">සිංහල</button></div></div>
     <div class="fld"><span class="lbl">Spoken replies</span><div class="seg" id="sTalk"><button data-v="1">On</button><button data-v="0">Off</button></div></div>
@@ -477,7 +478,7 @@ function icon(n){return '<svg viewBox="0 0 24 24" aria-hidden="true">'+(IC[n]||'
 /* ---------- state ---------- */
 var THEMES={cyan:'31,208,240',red:'255,45,70',amber:'255,176,32',white:'226,238,243',green:'60,255,140',purple:'170,110,255',blue:'60,130,255',pink:'255,90,190',orange:'255,130,40',yellow:'255,225,50'};
 var state={v:1,cars:[],cur:null,trip:{dist:0,moving:0,max:0,smooth:0},
-  set:{unit:'kmh',src:'auto',limit:0,beep:1,theme:'auto',price:0,cur:'Rs',obd:null,acc:'cyan',map:'map',vlang:'en-US',talk:1,wake:0,nc:0},places:[],recent:[],pos:null};
+  set:{unit:'kmh',src:'auto',limit:0,beep:1,theme:'auto',price:0,cur:'Rs',obd:null,acc:'cyan',map:'map',vlang:'en-US',talk:1,wake:0,nc:0,sens:'n',mvol:1},places:[],recent:[],pos:null};
 var dirty=false;
 function load(){
   try{var raw=localStorage.getItem(KEY);if(!raw)return;var s=JSON.parse(raw),k;
@@ -1026,7 +1027,7 @@ function mDur(){var d=playerPlugin()?NP.dur/1000:audio.duration;return(d&&isFini
 function mSeek(sec){var P=playerPlugin();sec=Math.max(0,sec);if(P){if(NP.src){NP.pos=sec*1000;nIgnore(P.seek({ms:Math.round(sec*1000)}));mProgress();}return;}audio.currentTime=sec;}
 function mPause(){var P=playerPlugin();if(P){NP.want=false;if(NP.src)nIgnore(P.pause());mUpdate();return;}audio.pause();}
 function mProgress(){var d=mDur(),c=mPos();$('mFill').style.width=(d?Math.min(100,c/d*100):0)+'%';$('mCur').textContent=fmtTime(c);$('mDur').textContent=fmtTime(d);}
-function applyVol(){var v=(duckArm||duckTalk)?0.15:1,P=playerPlugin();try{audio.volume=v;}catch(e){}if(P&&NP.src&&v!==NP.vol){NP.vol=v;nIgnore(P.volume({v:v}));}}
+function applyVol(){var v=Math.round((+state.set.mvol||1)*((duckArm||duckTalk)?0.15:1)*100)/100,P=playerPlugin();try{audio.volume=v;}catch(e){}if(P&&NP.src&&v!==NP.vol){NP.vol=v;nIgnore(P.volume({v:v}));}}
 function nBind(P){
   if(NP.bound||!P.addListener)return;NP.bound=true;
   P.addListener('tick',function(e){if(!e)return;NP.pos=+e.pos||0;NP.dur=+e.dur||0;var was=NP.playing;NP.playing=!!e.playing;mProgress();if(was!==NP.playing)mUpdate();});
@@ -1230,7 +1231,7 @@ function setDest(q){
   state.recent.unshift(q);if(state.recent.length>6)state.recent.length=6;save();
   navDest=q;$('banner').className='banner go';$('bTitle').textContent=q;$('bSub').textContent='Route is on the map';
   $('bStart').classList.remove('hide');$('bEnd').classList.remove('hide');
-  mapTick(true);say('Destination set to '+q+'. Say start, or tap Start.');
+  mapTick(true);say('Destination set to '+q+'. '+(hfOn?'Say Hey Jarvis, start.':'Say start, or tap Start.'));
 }
 function startNav(){
   if(!navDest){say('Set a destination first.');return;}
@@ -1280,72 +1281,192 @@ function speak(t){
 function clock12(){var d=new Date(),h=d.getHours();return ((h+11)%12+1)+':'+pad2(d.getMinutes())+' '+(h<12?'AM':'PM');}
 function unitWord(){return mph()?'miles per hour':'kilometres per hour';}
 function findPlace(n){var i,k=trim(n).toLowerCase();for(i=0;i<state.places.length;i++)if(state.places[i].n.toLowerCase()===k)return state.places[i].q;return null;}
-function runCommand(raw){
-  var t=trim(String(raw==null?'':raw)).replace(/[.!?,]+$/,''),l,m,q,i,c=car();
-  if(!t)return '';
-  l=trim(t.toLowerCase().replace(/^(?:hey |ok |okay )?(?:assistant|jarvis)[, ]+/,'').replace(/^(?:please |can you |could you |will you )+/,'').replace(/ please$/,''));
-  t=t.substr(t.length-l.length);
+/* ---------- commands: first work out what was meant, then do it ----------
+   Spoken commands come in many shapes ("open google map", "jarvis can you take me to Matara please",
+   "play some music and then go to Kandy"). Fillers are dropped, the meaning is found by key words anywhere
+   in the sentence, "and"/"then" joins two commands, and the recognizer's other guesses are tried when
+   the first one makes no sense. */
+var MUSICW='music|songs?|tracks?|tunes|playlist|something|anything|radio|audio';
+var RE_GENERIC=new RegExp('^(?:(?:some|the|my|a|any|nice|good|a few|more)\\s+)*(?:'+MUSICW+')?(?:\\s+(?:please|now|again|on))*$');
+function cmdNorm(raw){
+  var s=' '+String(raw==null?'':raw).toLowerCase().replace(/[\u2018\u2019]/g,"'").replace(/[\u201C\u201D"`]/g,' ').replace(/[.!?,;:]+/g,' ')+' ';
+  s=s.replace(/\s+/g,' ');
+  /* the wake word, and what the recognizer makes of it, at the start */
+  s=s.replace(/^ (?:(?:hey|hi|hay|ok|okay|hello|so|um|uh|a)\s+)*(?:jarvis|jarvus|jervis|javis|jarviz|jarves|jarvice|charvis|travis|assistant|vis)(?='s | )/,' ');
+  var prev;
+  do{prev=s;
+    s=s.replace(/ (?:please|pls|plz|kindly|can you|could you|would you|will you|would you mind|i want you to|i need you to|i want to|i wanna|i need to|i'd like to|i would like to|i like to|let's|lets|let us|for me|right now|now|just|quickly|hey|jarvis|um|uh|කරුණාකර|ප්ලීස්)(?= )/g,' ');
+  }while(s!==prev);
+  s=s.replace(/^ (?:ok|okay|so|and|well) (?=\S+ )/,' ');
+  s=s.replace(/ goto /g,' go to ').replace(/ go (?:2|too|two) /g,' go to ').replace(/ navigation to /g,' navigate to ');
+  return trim(s.replace(/\s+/g,' '));
+}
+function titleCase(s){return s.replace(/(^|\s)([a-z])/g,function(a,b,c){return b+c.toUpperCase();});}
+/* take the place name from what was said, keeping the speaker's spelling when it can be found */
+function placeText(p,raw){
+  p=trim(String(p||'').replace(/^(?:the|a)\s+/,'').replace(/\s+(?:please|now|city|town|right away|immediately|by car|quickly|asap)$/,'')
+    .replace(/\s+(?:on|in|using|with|by|through)\s+(?:the\s+)?(?:google\s*)?maps?(?:\s+app)?$/,'').replace(/\s+(?:yamu|yanna)$/,''));
+  if(!p)return '';
+  var o=String(raw||''),i=o.toLowerCase().lastIndexOf(p);
+  if(i>=0)return trim(o.substr(i,p.length));
+  return /^[a-z0-9 '\-]+$/.test(p)?titleCase(p):p;
+}
+function notPlace(p){
+  return !p||/^(?:there|here|it|that|this|home page|the map|maps?|google maps?|google|map|navigation|music|songs?|next song|sleep|back)$/.test(p)||RE_GENERIC.test(p)&&p!=='';
+}
+function findTrack(q){
+  var w=trim(q).split(/\s+/),best=-1,bs=0,i,j,s,n;
+  for(i=0;i<tracks.length;i++){
+    n=(tracks[i].name+' '+(tracks[i].artist||'')).toLowerCase();
+    if(n.indexOf(q)>=0)return i;
+    for(s=0,j=0;j<w.length;j++)if(w[j].length>1&&n.indexOf(w[j])>=0)s++;
+    if(s>bs){bs=s;best=i;}
+  }
+  return bs>=Math.max(1,Math.ceil(w.length*0.6))?best:-1;
+}
+var RE_SPLIT=/ (?:and then|and also|after that|then|and|ඊට පස්සේ|ඊට පසු|passe) /;
+function parseCmd(raw){
+  var l=cmdNorm(raw),m,q;
+  if(!l)return {k:''};
 
-  /* speed first, so that "keeyada yanne" is not read as a place */
-  if(/^(how fast(?: am i going| are we going)?|speed|my speed|current speed|what(?:'s| is) (?:my|the|our) speed)$/.test(l)||/වේගය|ස්පීඩ්|කීයෙන්ද|කීයද යන්නේ|speed eka|wegaya|keeyada yanne|kiyada yanne/.test(l)){
-    say(live.target===null?'I have no speed reading yet.':'You are doing '+Math.round(live.disp)+' '+unitWord()+'.');return 'speed';}
+  /* settings that share words with other commands go first */
+  if((m=/(?:^| )(?:set )?(?:the )?(?:speed )?limit (?:to |at )?(off|\d{2,3})(?: |$)/.exec(l)))return {k:'limit',v:m[1]};
+  if(/(?:^| )(?:top|max|maximum|highest) speed(?: |$)/.test(l))return {k:'topq'};
+  if(/how fast|(?:^| )(?:speed|speedo|velocity)(?: |$)/.test(l)||/වේගය|ස්පීඩ්|කීයෙන්ද|කීයද යන්නේ|speed eka|wegaya|keeyada yanne|kiyada yanne/.test(l))return {k:'speed'};
+  if(/(?:^| )(?:stop|turn off|switch off|disable) (?:listening|hands ?free|the assistant)(?: |$)|^(?:go to sleep|sleep|good ?bye|bye)$/.test(l))return {k:'sleep'};
 
-  /* destination: lock it, show the route, wait for "start" */
-  if((m=/^(?:navigate to|navigate|go to|take me to|drive to|directions to|route to|set (?:the |my )?destination(?: to| as)?|lock (?:the |my )?destination(?: to| as)?|destination(?: is)?)\s+(.+)$/.exec(l))){
-    q=findPlace(m[1])||t.substr(t.length-m[1].length);setDest(q);return 'nav';}
-  if(/[඀-෿]/.test(l)&&(m=/^(.+?)\s*(?:වලට|වෙත|ට)?\s*(?:යමු|යන්න ඕනේ|යන්න ඕනෑ|යන්න ඕන|යන්න|යනවා)$/.exec(l))&&trim(m[1])){
-    setDest(findPlace(m[1])||trim(m[1]));return 'nav';}
-  if((m=/^(.+?)\s+(?:walata|wlata|ekata|ta)\s+(?:yamu|yanna ona|yanna one|yanna)$/.exec(l))){setDest(findPlace(m[1])||t.substr(0,m[1].length));return 'nav';}
-  if((q=findPlace(l))){setDest(q);return 'nav';}
-  if(navDest&&/^(start|begin|start navigation|start guidance|start the route|start route|yes|ok|okay|let's go|lets go|go|පටන් ගන්න|යමු|ඔව්|හරි|patan ganna|yamu|ow|hari)$/.test(l)){startNav();return 'start';}
-  if(/^(end|stop|cancel|clear)(?: the| my)? (navigation|route|guidance|destination)$/.test(l)||/(නැවිගේෂන්|ගමන|පාර).*(නවත්|අවසන්|ඉවර)/.test(l)){endNav();return 'navend';}
+  /* navigation */
+  if(/(?:^| )(?:end|stop|cancel|clear|close|exit|finish|quit|remove|delete)(?: the| my| this| current)? (?:navigation|navigating|route|guidance|destination|directions|journey)(?: |$)/.test(l)||/(නැවිගේෂන්|ගමන|පාර).*(නවත්|අවසන්|ඉවර)/.test(l))return {k:'navend'};
+  if(/^(?:start|begin|go|yes|yeah|ok|okay|sure|lets go|go go|go ahead|drive|navigate|start (?:the )?(?:navigation|guidance|route|journey|trip|driving|directions)|start navigating|begin (?:the )?(?:navigation|guidance)|open (?:it )?in (?:google )?maps?|take me there|පටන් ගන්න|යමු|ඔව්|හරි|patan ganna|yamu|ow|hari)$/.test(l))return {k:'start'};
+  if((m=/(?:^| )(start|begin)(?: the)? (?:navigation|navigating|navigate|guidance|route|directions|driving)(?: to| towards| for)? (.+)$/.exec(l))&&!notPlace(m[2]))return {k:'nav',q:m[2],go:true};
+  if((m=/(?:^| )(?:navigate|navigation|go|goes|going|drive|driving|head|heading|travel|ride|take me|take us|bring me|get me|show me the way|show the way|the way|directions?|route|path|how (?:do|can) i get|how to get|get)(?: me| us)?(?: to| towards| toward| till| until| for| into)\s+(.+)$/.exec(l))&&!notPlace(m[1]))return {k:'nav',q:m[1]};
+  if((m=/(?:^| )(?:navigate|take me|take us|bring me|drive me|directions|route)\s+(.+)$/.exec(l))&&!notPlace(m[1]))return {k:'nav',q:m[1]};
+  if((m=/(?:^| )(?:set|lock|change|new|make|update)(?: the| my| a)? (?:destination|location|place)(?: to| as| is| for)?\s+(.+)$/.exec(l))&&!notPlace(m[1]))return {k:'nav',q:m[1]};
+  if((m=/^(?:destination|location)(?: is| to| as)?\s+(.+)$/.exec(l))&&!notPlace(m[1]))return {k:'nav',q:m[1]};
+  if((m=/(?:^| )(?:find|search for|search|where is|locate|show me where)\s+(.+)$/.exec(l))&&!/^(?:i am|am i|we are|are we)/.test(m[1])&&!notPlace(m[1])&&!new RegExp('(?:^| )(?:'+MUSICW+')(?: |$)').test(m[1]))return {k:'nav',q:m[1]};
+  if(/[඀-෿]/.test(l)&&(m=/^(.+?)\s*(?:වලට|වෙත|ට)?\s*(?:යමු|යන්න ඕනේ|යන්න ඕනෑ|යන්න ඕන|යන්න|යනවා|යන්නයි)$/.exec(l))&&trim(m[1]))return {k:'nav',q:trim(m[1]),si:true};
+  if((m=/^(.+?)\s+(?:walata|wlata|ekata|ta)\s+(?:yamu|yanna ona|yanna one|yanna oney|yanna)$/.exec(l)))return {k:'nav',q:m[1]};
+  if((m=/^(.+?)\s+(?:yamu|yanna ona|yanna one)$/.exec(l))&&!/(?:^| )(?:sindu|music)/.test(m[1]))return {k:'nav',q:m[1]};
+  if((q=findPlace(l)))return {k:'nav',q:q,saved:true};
 
-  /* map */
-  if(/^(?:show|open|load|display)(?: me)?(?: the| my)? map$|^map$|^where am i$/.test(l)||/මැප්|සිතියම|map eka/.test(l)){
-    state.set.map='map';save();closeSheets();mapTick(true);
-    say(mapUrlNow?'The map is on screen.':(navigator.onLine===false?'The map needs an internet connection.':'The map appears once GPS finds your position.'));return 'map';}
-  if(/^(?:show|open)(?: the| my)? (?:trail|route trail|path)$/.test(l)){state.set.map='trail';save();mapTick(true);trailDirty=true;drawTrail();say('Showing the trail you have driven.');return 'trail';}
+  /* the map */
+  if(/(?:^| )(?:trail|route trail|path i drove|where i drove)(?: |$)/.test(l))return {k:'trail'};
+  if(/(?:^| )(?:maps?|google ?maps?|g ?maps?|navigation app|sat ?nav)(?: |$)|මැප්|සිතියම|map eka|where am i|(?:my|current) location/.test(l))return {k:'map',app:/(?:^| )app(?: |$)/.test(l)};
 
+  /* vehicle questions that share words with music ("next service") */
+  if(/(?:^| )(?:odometer|mileage|total distance)(?: |$)/.test(l))return {k:'odo'};
+  if(/(?:^| )(?:service|servicing|oil change)(?: |$)/.test(l))return {k:'service'};
   /* music */
-  if(/^(?:play|resume)(?: the| some| my)?(?: music| song| songs)?$/.test(l)||/(සින්දු|ගීත|මියුසික්|සංගීත).*(දාන්න|දාපන්|වාදනය|ප්ලේ|අහමු)|^ප්ලේ(?: කරන්න)?$/.test(l)||/^(?:sindu|sinduwak|geetha)(?: ekak)? (?:danna|dapan|play karanna)$/.test(l)){
-    if(!tracks.length){say('There is no music yet. Add songs first.');openMusic();}
-    else{if(tIdx<0||!mLoaded()||mPaused())mToggle();say('Playing '+(tracks[tIdx]?tracks[tIdx].name:'music')+'.');}
-    return 'play';}
-  if(/^(?:pause|stop)(?: the)?(?: music| song)?$/.test(l)||/නවත්තන්න|නවතන්න|නවත්වන්න|පෝස්|ස්ටොප්/.test(l)||/^(?:sindu )?(?:nawaththanna|nawattanna|nawathanna)$/.test(l)){mPause();say('Music paused.');return 'pause';}
-  if(/^(?:next|skip)(?: song| track| one)?$/.test(l)||/ඊළඟ|ඊලඟ|නෙක්ස්ට්|^(?:eelanga|ilanga|eelaga)/.test(l)){
-    if(!tracks.length){say('There is no music yet.');return 'next';}mNext(false);say('Next song. '+(tracks[tIdx]?tracks[tIdx].name:'')+'.');return 'next';}
-  if(/^(?:prev|previous|back|last)(?: song| track| one)?$/.test(l)||/කලින් (?:සින්දු|ගීත|එක)|පෙර (?:සින්දු|ගීත)|^kalin (?:sindu|eka)/.test(l)){
-    if(!tracks.length){say('There is no music yet.');return 'prev';}mPrev();say('Previous song.');return 'prev';}
-  if(/^shuffle(?: on| off)?$/.test(l)){shuf=!/off$/.test(l);mSave();mUpdate();say(shuf?'Shuffle is on.':'Shuffle is off.');return 'shuffle';}
-  if(/^repeat(?: on| off| all| one| this song)?$/.test(l)){rep=/off$/.test(l)?0:(/one$|this song$/.test(l)?2:1);mSave();mUpdate();say(['Repeat is off.','Repeating all songs.','Repeating this song.'][rep]);return 'repeat';}
-  if(/^(?:open|show)(?: the| my)? (?:music|songs|playlist|song list)$/.test(l)){openMusic();say('Here is your music.');return 'music';}
-  if((m=/^play (.+)$/.exec(l))){
-    for(i=0;i<tracks.length;i++)if((tracks[i].name+' '+(tracks[i].artist||'')).toLowerCase().indexOf(m[1])>=0){mPlayAt(i);say('Playing '+tracks[i].name+'.');return 'playname';}
-    say('I could not find '+m[1]+' in your music.');return 'playname';}
+  if(/(?:^| )(?:pause|stop|mute|silence|quiet|turn off|switch off|shut up|be quiet|hold)(?: the| my| this| that)?(?: music| song| songs| audio| player| it| sound| radio)?$/.test(l)||/(?:^| )(?:stop|pause|mute|turn off|switch off)(?: the| my| this)? (?:music|song|songs|audio|player|radio)(?: |$)/.test(l)||/නවත්තන්න|නවතන්න|නවත්වන්න|පෝස්|ස්ටොප්/.test(l)||/^(?:sindu |sinduwa )?(?:nawaththanna|nawattanna|nawathanna|nawaththapan)$/.test(l))return {k:'pause'};
+  if(/(?:^| )(?:previous|prev)(?: song| track| one)?(?: |$)|^(?:back|go back|last song|last track|last one|song before|play (?:the )?(?:previous|last) (?:song|track|one))$/.test(l)||/කලින් (?:සින්දු|ගීත|එක)|පෙර (?:සින්දු|ගීත)|^kalin (?:sindu|eka)/.test(l))return {k:'prev'};
+  if(/(?:^| )(?:next|skip)(?: song| track| one| music)?(?: |$)|(?:^| )(?:change|another|different|other)(?: the| this)? (?:song|track|music)(?: |$)/.test(l)||/ඊළඟ|ඊලඟ|නෙක්ස්ට්|^(?:eelanga|ilanga|eelaga|wena sinduwak)/.test(l))return {k:'next'};
+  if((m=/(?:^| )(?:volume|sound)(?: to| at)? (\d{1,3})(?: percent| %)?$/.exec(l)))return {k:'vol',v:Math.max(10,Math.min(100,+m[1]))/100};
+  if(/(?:volume|sound) (?:up|higher|louder|increase)|louder|turn (?:it |the music |the volume |the sound )?up|(?:increase|raise) (?:the )?(?:volume|sound)|සද්දේ වැඩි|sadde wadi/.test(l))return {k:'vol',d:0.2};
+  if(/(?:volume|sound) (?:down|lower|softer|decrease)|softer|quieter|turn (?:it |the music |the volume |the sound )?down|(?:decrease|lower|reduce) (?:the )?(?:volume|sound)|සද්දේ අඩු|sadde adu/.test(l))return {k:'vol',d:-0.2};
+  if(/(?:^| )shuffle(?: |$)/.test(l))return {k:'shuffle',on:!/(?:^| )(?:off|stop|no|disable)(?: |$)/.test(l)};
+  if(/(?:^| )repeat(?: |$)/.test(l))return {k:'repeat',v:/(?:^| )(?:off|stop|no|disable)(?: |$)/.test(l)?0:(/(?:^| )(?:one|this song|this one|the song|same song)(?: |$)/.test(l)?2:1)};
+  if(/(?:^| )(?:open|show)(?: the| my)? (?:music|songs|playlist|song list|music list|library|player)(?: |$)/.test(l))return {k:'music'};
+  if(/^(?:play|resume|continue|unpause|start|put on|turn on|listen to|switch on|music|songs)(?: (?:some|the|my|a|any|more))?(?: (?:music|songs?|tracks?|tunes|playlist|something|anything|radio|audio))?(?: again)?$/.test(l)||/(?:^| )(?:play|put on|turn on|listen to|start)(?: (?:some|the|my|a|any|more))? (?:music|songs|tunes|playlist)(?: |$)/.test(l)||/(සින්දු|ගීත|මියුසික්|සංගීත).*(දාන්න|දාපන්|වාදනය|ප්ලේ|අහමු)|^ප්ලේ(?: කරන්න)?$/.test(l)||/^(?:sindu|sinduwak|geetha|music)(?: ekak)? (?:danna|dapan|play karanna|ahamu)$/.test(l))return {k:'play'};
+  if((m=/(?:^| )(?:play|put on)(?: the)?(?: song)? (.+?)(?: song)?$/.exec(l))&&!RE_GENERIC.test(m[1]))return {k:'playname',q:m[1]};
 
   /* questions */
-  if(/^(?:time|the time|what time is it|what(?:'s| is) the time|current time)$/.test(l)||/වෙලාව|වේලාව|welawa/.test(l)){say('It is '+clock12()+'.');return 'time';}
-  if(/^(?:date|what(?:'s| is) (?:the|today's) date|what day is it|today)$/.test(l)){var d=new Date();say('Today is '+['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][d.getDay()]+', '+d.getDate()+' '+['January','February','March','April','May','June','July','August','September','October','November','December'][d.getMonth()]+'.');return 'date';}
-  if(/^(?:trip|how far|trip distance|how far have (?:i|we) (?:gone|driven|come))$/.test(l)||/දුර කීයද|කොච්චර දුර|dura keeyada/.test(l)){say('This trip is '+state.trip.dist.toFixed(1)+' kilometres so far.');return 'tripq';}
-  if(/^(?:top speed|max speed|maximum speed)$/.test(l)){say('Top speed this trip is '+Math.round(toDisp(state.trip.max))+' '+unitWord()+'.');return 'topq';}
-  if(/^(?:fuel|fuel level|how much fuel(?: is left| do i have| do we have)?)$/.test(l)||/තෙල්|ඉන්ධන|thel/.test(l)){say(live.fuel===null?'I have no fuel reading. That needs an OBD adapter.':'Fuel is at '+Math.round(live.fuel)+' percent.');return 'fuel';}
-  if(/^(?:engine temp(?:erature)?|temperature|coolant(?: temp(?:erature)?)?)$/.test(l)){say(live.cool===null?'I have no engine temperature. That needs an OBD adapter.':'Engine temperature is '+Math.round(live.cool)+' degrees.');return 'temp';}
-  if(/^(?:battery|battery voltage|battery level)$/.test(l)){say(live.volt===null?'I have no battery reading. That needs an OBD adapter.':'The battery is at '+live.volt.toFixed(1)+' volts.');return 'batt';}
-  if(/^(?:odometer|mileage|total distance)$/.test(l)){say(c?'The odometer is at '+commas(c.odo||0)+' kilometres.':'Add a vehicle first.');return 'odo';}
-  if(/^(?:service|next service|when is (?:my|the) next service)$/.test(l)){say(c&&c.service>0?(c.service-(c.odo||0)>=0?'Next service is in '+commas(c.service-(c.odo||0))+' kilometres.':'Service is overdue by '+commas((c.odo||0)-c.service)+' kilometres.'):'No service distance is set for this vehicle.');return 'service';}
+  if(/(?:^| )(?:what time|the time|time is it|current time|time now|clock)(?: |$)|^time$/.test(l)||/වෙලාව|වේලාව|welawa|wela keeyada/.test(l))return {k:'time'};
+  if(/(?:^| )(?:date|what day|which day|day is it|today)(?: |$)/.test(l))return {k:'date'};
+  if(/how far|(?:^| )(?:trip|distance)(?: |$)/.test(l)&&!/(?:reset|clear|new) trip/.test(l)||/දුර කීයද|කොච්චර දුර|dura keeyada/.test(l))return {k:'tripq'};
+  if(/(?:^| )(?:fuel|petrol|diesel|gas|tank)(?: |$)|තෙල්|ඉන්ධන|thel/.test(l))return {k:'fuel'};
+  if(/(?:^| )(?:engine temp|temperature|coolant|engine heat|overheat)/.test(l))return {k:'temp'};
+  if(/(?:^| )(?:battery|voltage)(?: |$)/.test(l))return {k:'batt'};
 
   /* settings */
-  if((m=/^(?:set )?(?:speed )?limit (?:to )?(off|\d{2,3})$/.exec(l))){state.set.limit=m[1]==='off'?0:+m[1];save();updLimitMark();say(state.set.limit?'I will warn you above '+state.set.limit+'.':'Speed limit warning is off.');return 'limit';}
-  if((m=/^(?:theme|colou?r)(?: to)? ([a-z]+)$/.exec(l))&&THEMES[m[1]]){setAcc(THEMES[m[1]],true);say('Theme set to '+m[1]+'.');return 'theme';}
-  if(/^(?:reset|clear|new) trip$/.test(l)){resetTrip();say('Trip reset.');return 'trip';}
-  if(/^(?:hud|hud mode|full ?screen)$/.test(l)){setHud(true);return 'hud';}
-  if(/^(?:exit|close|leave) hud$/.test(l)){setHud(false);return 'hud';}
-  if(/^mirror(?: on| off)?$/.test(l)){tog(document.body,'mirror',!/off$/.test(l));return 'mirror';}
-  if(/^(?:demo|start demo|demo drive)$/.test(l)){setDemo(true);say('Demo drive started.');return 'demo';}
-  if(/^(?:stop demo|end demo)$/.test(l)){setDemo(false);say('Demo drive stopped.');return 'demo';}
-  if(/^(?:help|what can you do|commands)$/.test(l)){say('Say Hey Jarvis, then: go to Kandy, start, play music, next, what is my speed, show map.');return 'help';}
-  say('I did not catch that. Try: go to Kandy, play music, or what is my speed.');
+  if((m=/(?:^| )(?:theme|colou?r)(?: to| as)? ([a-z]+)$/.exec(l))&&THEMES[m[1]])return {k:'theme',v:m[1]};
+  if(/(?:reset|clear|new|start a new|start new) trip/.test(l))return {k:'trip'};
+  if(/(?:^| )(?:exit|close|leave|stop|turn off) (?:the )?(?:hud|full ?screen)(?: |$)/.test(l))return {k:'hudoff'};
+  if(/^(?:hud|hud mode|full ?screen|show hud|open hud|hud on)$/.test(l))return {k:'hud'};
+  if(/(?:^| )mirror(?: |$)/.test(l))return {k:'mirror',on:!/(?:^| )off(?: |$)/.test(l)};
+  if(/(?:stop|end) demo/.test(l))return {k:'demooff'};
+  if(/(?:^| )demo(?: |$)/.test(l))return {k:'demo'};
+  if(/(?:^| )(?:help|what can you do|commands|how do i use)(?: |$)/.test(l))return {k:'help'};
+  return {k:'unknown'};
+}
+function execCmd(p,raw){
+  var c=car(),i,q;
+  switch(p.k){
+    case '':return '';
+    case 'limit':state.set.limit=p.v==='off'?0:+p.v;save();updLimitMark();say(state.set.limit?'I will warn you above '+state.set.limit+'.':'Speed limit warning is off.');return 'limit';
+    case 'topq':say('Top speed this trip is '+Math.round(toDisp(state.trip.max))+' '+unitWord()+'.');return 'topq';
+    case 'speed':say(live.target===null?'I have no speed reading yet.':'You are doing '+Math.round(live.disp)+' '+unitWord()+'.');return 'speed';
+    case 'sleep':if(hfOn){setHandsFree(false,false);say('Hands-free is off. Tap the mic to speak.');}else say('Hands-free is already off.');return 'sleep';
+    case 'navend':endNav();return 'navend';
+    case 'start':if(!navDest){say('There is no destination yet. Say go to, and the place.');return 'nodest';}startNav();return 'start';
+    case 'nav':
+      q=p.saved||p.si?p.q:(findPlace(p.q)||placeText(p.q,raw));
+      if(!q){say('Which place? Say go to, and the place.');return 'unknown';}
+      setDest(q);if(p.go)startNav();return 'nav';
+    case 'trail':state.set.map='trail';save();mapTick(true);trailDirty=true;drawTrail();say('Showing the trail you have driven.');return 'trail';
+    case 'map':
+      if(p.app&&navDest){startNav();return 'start';}
+      state.set.map='map';save();closeSheets();mapTick(true);
+      say(mapUrlNow?(navDest?'The map shows the route to '+navDest+'. Say start to begin guidance.':'The map is on screen. Say go to, and a place.'):(navigator.onLine===false?'The map needs an internet connection.':'The map appears once GPS finds your position.'));
+      return 'map';
+    case 'pause':mPause();say('Music paused.');return 'pause';
+    case 'prev':if(!tracks.length){say('There is no music yet.');return 'prev';}mPrev();say('Previous song.');return 'prev';
+    case 'next':if(!tracks.length){say('There is no music yet.');return 'next';}mNext(false);say('Next song. '+(tracks[tIdx]?tracks[tIdx].name:'')+'.');return 'next';
+    case 'vol':
+      state.set.mvol=Math.round(Math.max(0.1,Math.min(1,p.v!=null?p.v:(+state.set.mvol||1)+p.d))*10)/10;save();applyVol();
+      say('Music volume '+Math.round(state.set.mvol*100)+' percent.');return 'vol';
+    case 'shuffle':shuf=p.on;mSave();mUpdate();say(shuf?'Shuffle is on.':'Shuffle is off.');return 'shuffle';
+    case 'repeat':rep=p.v;mSave();mUpdate();say(['Repeat is off.','Repeating all songs.','Repeating this song.'][rep]);return 'repeat';
+    case 'music':openMusic();say('Here is your music.');return 'music';
+    case 'play':
+      if(!tracks.length){say('There is no music yet. Add songs first.');openMusic();}
+      else{if(tIdx<0||!mLoaded()||mPaused())mToggle();say('Playing '+(tracks[tIdx]?tracks[tIdx].name:'music')+'.');}
+      return 'play';
+    case 'playname':
+      i=findTrack(p.q);
+      if(i>=0){mPlayAt(i);say('Playing '+tracks[i].name+'.');}else say('I could not find '+p.q+' in your music.');
+      return 'playname';
+    case 'time':say('It is '+clock12()+'.');return 'time';
+    case 'date':var d=new Date();say('Today is '+['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][d.getDay()]+', '+d.getDate()+' '+['January','February','March','April','May','June','July','August','September','October','November','December'][d.getMonth()]+'.');return 'date';
+    case 'tripq':say('This trip is '+state.trip.dist.toFixed(1)+' kilometres so far.');return 'tripq';
+    case 'fuel':say(live.fuel===null?'I have no fuel reading. That needs an OBD adapter.':'Fuel is at '+Math.round(live.fuel)+' percent.');return 'fuel';
+    case 'temp':say(live.cool===null?'I have no engine temperature. That needs an OBD adapter.':'Engine temperature is '+Math.round(live.cool)+' degrees.');return 'temp';
+    case 'batt':say(live.volt===null?'I have no battery reading. That needs an OBD adapter.':'The battery is at '+live.volt.toFixed(1)+' volts.');return 'batt';
+    case 'odo':say(c?'The odometer is at '+commas(c.odo||0)+' kilometres.':'Add a vehicle first.');return 'odo';
+    case 'service':say(c&&c.service>0?(c.service-(c.odo||0)>=0?'Next service is in '+commas(c.service-(c.odo||0))+' kilometres.':'Service is overdue by '+commas((c.odo||0)-c.service)+' kilometres.'):'No service distance is set for this vehicle.');return 'service';
+    case 'theme':setAcc(THEMES[p.v],true);say('Theme set to '+p.v+'.');return 'theme';
+    case 'trip':resetTrip();say('Trip reset.');return 'trip';
+    case 'hud':setHud(true);return 'hud';
+    case 'hudoff':setHud(false);return 'hud';
+    case 'mirror':tog(document.body,'mirror',p.on);return 'mirror';
+    case 'demo':setDemo(true);say('Demo drive started.');return 'demo';
+    case 'demooff':setDemo(false);say('Demo drive stopped.');return 'demo';
+    case 'help':say('Say Hey Jarvis, then for example: take me to Matara, start, open the map, play music, next song, volume up, what is my speed.');return 'help';
+  }
+  var h=trim(String(raw||''));
+  say(h?'Sorry, I heard \u201C'+h+'\u201D. I can take you to a place, open the map, play music, or tell your speed.':'I did not catch that.');
   return 'unknown';
+}
+/* "open the map and go to Matara": two commands, when each half makes sense on its own */
+function splitCmd(raw){
+  var l=cmdNorm(raw),parts,i,ps=[];
+  if(!RE_SPLIT.test(' '+l+' '))return null;
+  parts=l.split(RE_SPLIT);
+  if(parts.length<2)return null;
+  for(i=0;i<parts.length;i++){var p=parseCmd(parts[i]);if(p.k==='unknown'||p.k==='')return null;ps.push({p:p,t:parts[i]});}
+  return ps;
+}
+function runCommand(raw){
+  var t=trim(String(raw==null?'':raw)),ps,i,r='';
+  if(!t)return '';
+  if((ps=splitCmd(t))){for(i=0;i<ps.length;i++)r=execCmd(ps[i].p,ps[i].p.k==='nav'?t:ps[i].t);return r;}
+  return execCmd(parseCmd(t),t);
+}
+/* the recognizer's guesses, best first: act on the first one that makes sense */
+function runAlternatives(list){
+  var i,t;
+  for(i=0;i<list.length;i++){t=trim(list[i]);if(!t)continue;
+    if(splitCmd(t)||parseCmd(t).k!=='unknown'){heard(t);return runCommand(t);}}
+  t=trim(list[0]||'');heard(t);return runCommand(t);
 }
 function cmdGo(){var v=$('cmd').value;$('cmd').value='';$('cmd').blur();micSwap();if(trim(v)){heard(trim(v));runCommand(v);}}
 function micSwap(){var e=!trim($('cmd').value);tog($('mic'),'hide',!e);tog($('cmdGo'),'hide',e);}
@@ -1359,7 +1480,7 @@ function listenDone(text,err){
 }
 function listen(){
   var p=voicePlugin(),SR=window.SpeechRecognition||window.webkitSpeechRecognition,lang=state.set.vlang||'en-US';
-  if(hfOn){arm();return;} /* already listening all the time: just skip the wake word */
+  if(hfOn&&p&&p.startHandsFree){nIgnore(p.listen({lang:lang}));return;} /* listening all the time already: the button works like saying Hey Jarvis */
   if(listening){if(p&&p.stop)try{p.stop()['catch'](function(){});}catch(e){}return;}
   if(!p&&!SR){say('Voice works in the installed app. Type your command here instead.',true);return;}
   listening=true;heard('');$('orb').classList.add('busy');say('Listening',true);duck(true);
@@ -1374,42 +1495,32 @@ function listen(){
 }
 $('mic').onclick=listen;$('orb').onclick=listen;
 
-/* ---------- hands-free: "Hey Jarvis, play music" ----------
-   The native side keeps listening and sends each sentence it hears. Nothing happens unless the
-   sentence has the wake word in it. "Hey Jarvis" on its own arms the assistant for the next sentence. */
-var WAKE=/(?:^|\s)(?:(?:hey|hi|hay|ok|okay|hello|a|\u0DC4\u0DDA|\u0DC4\u0DD9\u0DBA\u0DD2|\u0DC4\u0DCF\u0DBA\u0DD2)\s+)?(?:jarvis|jarvus|jervis|javis|jarviz|jarvi's|jar vis|jarves|jarvice|travis|charvis|\u0DA2\u0DCF\u0DC0\u0DD2\u0DC3\u0DCA|\u0DA2\u0DCF\u0DBB\u0DCA\u0DC0\u0DD2\u0DC3\u0DCA|\u0DA2\u0DCF\u0DC0\u0DD3\u0DC3\u0DCA)(?:[,.!?]|\s|$)/i;
-var hfOn=false,hfBound=false,armedUntil=0,armT=null;
-function wakeSplit(text){var m=WAKE.exec(text);return m?trim(text.substr(m.index+m[0].length)):null;}
-function chime(){
-  try{audioCtx=audioCtx||new (window.AudioContext||window.webkitAudioContext)();var o=audioCtx.createOscillator(),g=audioCtx.createGain(),t=audioCtx.currentTime;
-    o.frequency.setValueAtTime(880,t);o.frequency.setValueAtTime(1320,t+0.09);g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(0.2,t+0.02);g.gain.exponentialRampToValueAtTime(0.0001,t+0.22);
-    o.connect(g);g.connect(audioCtx.destination);o.start(t);o.stop(t+0.25);}catch(e){}
-}
-function idleMsg(){return hfOn?'Say \u201CHey Jarvis\u201D':'Tap the mic and speak';}
-function disarm(){armedUntil=0;clearTimeout(armT);$('orb').classList.remove('busy');duck(false);}
-function arm(){
-  armedUntil=Date.now()+9000;heard('');$('orb').classList.add('busy');duck(true);chime();say('Yes? I am listening.',true);
-  clearTimeout(armT);armT=setTimeout(function(){if(armedUntil){disarm();say(idleMsg(),true);}},9200);
-}
-function onHeard(text){
-  text=trim(text);if(!text)return 'empty';
-  var rest=wakeSplit(text);
-  if(rest===null){
-    if(armedUntil&&Date.now()<armedUntil){disarm();heard(text);runCommand(text);return 'command';}
-    heard(text);return 'ignored';
-  }
-  if(rest){disarm();heard(text);runCommand(rest);return 'command';}
-  arm();return 'armed';
-}
+/* ---------- hands-free: "Hey Jarvis" ----------
+   An on-device wake word model listens all the time in the installed app (no speech service, no sounds,
+   no data while waiting). When it hears "Hey Jarvis" a tone plays, music turns down, and the speech
+   recognizer takes the command. A notification keeps it listening while Google Maps is in front. */
+var hfOn=false,hfBound=false,wakeT=null;
+var WAKE_THR={l:0.7,n:0.5,h:0.3};
+function wakeThr(){return WAKE_THR[state.set.sens]||0.5;}
+function idleMsg(){return hfOn?'Say “Hey Jarvis”':'Tap the mic and speak';}
+function wakeUI(){heard('');$('orb').classList.add('busy');duck(true);say('Listening…',true);clearTimeout(wakeT);wakeT=setTimeout(function(){wakeDone();say(idleMsg(),true);},15000);}
+function wakeDone(){clearTimeout(wakeT);wakeT=null;$('orb').classList.remove('busy');duck(false);}
+function hfOff(msg){hfOn=false;state.set.wake=0;save();wakeDone();if($('sWake'))segSet($('sWake'),0);if(msg)say(msg,true);}
 function setHandsFree(on,tell){
   var p=voicePlugin();
-  if(!on){hfOn=false;state.set.wake=0;save();disarm();if(p&&p.stopHandsFree)try{p.stopHandsFree()['catch'](function(){});}catch(e){}if(tell)say('Hands-free is off. Tap the mic to speak.',true);return;}
+  if(!on){var was=hfOn;hfOff('');if(p&&p.stopHandsFree)nIgnore(p.stopHandsFree());if(tell||was)say('Hands-free is off. Tap the mic to speak.',true);return;}
   if(!p||!p.startHandsFree){if(tell){say('Hey Jarvis works in the installed app.',true);toast('Hey Jarvis works in the installed app');}if($('sWake'))segSet($('sWake'),0);return;}
-  if(!hfBound){hfBound=true;
-    p.addListener('heard',function(e){if(hfOn)onHeard(e&&e.text);});
-    p.addListener('handsFree',function(e){if(e&&e.on===false){hfOn=false;disarm();say((e.error||'Hands-free listening stopped.'),true);}});}
-  p.startHandsFree({lang:state.set.vlang||'en-US'}).then(function(){hfOn=true;state.set.wake=1;save();if(tell)say('Hands-free is on. Say Hey Jarvis, then your command.');else say(idleMsg(),true);})
-    ['catch'](function(e){hfOn=false;if($('sWake'))segSet($('sWake'),0);say((e&&e.message)||'Could not start hands-free listening.',true);});
+  if(!hfBound&&p.addListener){hfBound=true;
+    p.addListener('wake',function(){if(hfOn)wakeUI();});
+    p.addListener('command',function(e){var l=e&&e.texts;if(typeof l==='string')l=[l];wakeDone();if(l&&l.length)runAlternatives(l);});
+    p.addListener('commandEnd',function(e){var er=(e&&e.error)||'';if(!wakeT)return;wakeDone();if(er==='nothing'||er==='stopped')say(idleMsg(),true);else if(er)say(er,true);});
+    p.addListener('micProblem',function(e){var m=(e&&e.message)||'The microphone is not working.';toast(m);say(m,true);});
+    p.addListener('handsFree',function(e){if(e&&e.on===false)hfOff(e.error||'Hands-free is off. Tap the mic to speak.');});}
+  p.startHandsFree({lang:state.set.vlang||'en-US',threshold:wakeThr(),nc:!!+state.set.nc}).then(function(r){
+    hfOn=true;state.set.wake=1;save();if($('sWake'))segSet($('sWake'),1);
+    if(tell)say(r&&r.background===false?'Hands-free is on while this app is open. Say Hey Jarvis, then your command.':'Hands-free is on. Say Hey Jarvis, then your command.');
+    else say(idleMsg(),true);
+  })['catch'](function(e){hfOff('');say((e&&e.message)||'Could not start hands-free listening.',true);});
 }
 
 /* Noise cancellation: the native side cleans the microphone sound before the speech recognizer gets it. */
@@ -1417,7 +1528,7 @@ var ncBound=false;
 function setNoise(on,tell){
   var p=voicePlugin();
   if(!p||!p.setNoise){state.set.nc=0;save();if($('sNc'))segSet($('sNc'),0);if(tell&&on)toast('Noise cancellation works in the installed app');return;}
-  if(!ncBound&&p.addListener){ncBound=true;p.addListener('noise',function(e){if(e&&e.on===false){state.set.nc=0;save();if($('sNc'))segSet($('sNc'),0);toast(e.error||'Noise cancellation is off');}});}
+  if(!ncBound&&p.addListener){ncBound=true;p.addListener('noise',function(e){if(e&&e.on===false){state.set.nc=0;save();if($('sNc'))segSet($('sNc'),0);toast(e.error||'Noise cancellation is off');}else if(e&&e.note)toast(e.note);});}
   p.setNoise({on:!!on}).then(function(r){
     var ok=!!(r&&r.on);state.set.nc=ok?1:0;save();if($('sNc'))segSet($('sNc'),ok?1:0);
     if(!tell)return;
@@ -1484,7 +1595,7 @@ function setAcc(rgb,keep){var c=car();if(c)c.acc=rgb;state.set.acc=rgb;applyThem
 $('sAcc').onpick=function(v){setAcc(v,true);};
 function openSettings(){
   cwDraw();cwMark();
-  var s=state.set;segSet($('sUnit'),s.unit);segSet($('sSrc'),s.src);segSet($('sLimit'),s.limit);segSet($('sBeep'),+s.beep?1:0);segSet($('sWake'),hfOn?1:0);segSet($('sNc'),+s.nc?1:0);segSet($('sVlang'),s.vlang||'en-US');segSet($('sTalk'),+s.talk?1:0);segSet($('sTheme'),s.theme);
+  var s=state.set;segSet($('sUnit'),s.unit);segSet($('sSrc'),s.src);segSet($('sLimit'),s.limit);segSet($('sBeep'),+s.beep?1:0);segSet($('sWake'),hfOn?1:0);segSet($('sNc'),+s.nc?1:0);segSet($('sSens'),s.sens||'n');segSet($('sVlang'),s.vlang||'en-US');segSet($('sTalk'),+s.talk?1:0);segSet($('sTheme'),s.theme);
   $('sPrice').value=s.price||'';$('sCur').value=s.cur||'';renderTripKv();openSheet('shSettings');
 }
 $('sUnit').onpick=function(v){state.set.unit=v;save();buildDial();};
@@ -1493,7 +1604,8 @@ $('sLimit').onpick=function(v){state.set.limit=+v;save();updLimitMark();};
 $('sBeep').onpick=function(v){state.set.beep=+v;save();if(+v){lastBeep=0;beep();}};
 $('sWake').onpick=function(v){setHandsFree(!!+v,true);};
 $('sNc').onpick=function(v){setNoise(!!+v,true);};
-$('sVlang').onpick=function(v){state.set.vlang=v;save();if(hfOn)setHandsFree(true,false);};
+$('sSens').onpick=function(v){state.set.sens=v;save();var p=voicePlugin();if(hfOn&&p&&p.setWake)nIgnore(p.setWake({threshold:wakeThr()}));toast(v==='h'?'Wakes more easily. It may also wake by mistake in a noisy car.':(v==='l'?'Wakes only when you say it clearly.':'Normal wake word sensitivity'));};
+$('sVlang').onpick=function(v){state.set.vlang=v;save();var p=voicePlugin();if(hfOn&&p&&p.setWake)nIgnore(p.setWake({lang:v}));};
 $('sTalk').onpick=function(v){state.set.talk=+v;save();if(+v)speak('Spoken replies are on.');};
 $('sTheme').onpick=function(v){state.set.theme=v;save();calcNight();};
 $('sPrice').onchange=function(){state.set.price=Math.max(0,num(this.value,0));save();renderTripKv();};
@@ -1517,7 +1629,7 @@ if(+state.set.nc&&voicePlugin())setNoise(true,false);
 if(+state.set.wake&&voicePlugin())setTimeout(function(){setHandsFree(true,false);},1200);
 
 /* hooks for the AI agent and for tests */
-window.DRIVORA={setNoise:setNoise,onHeard:onHeard,setHandsFree:setHandsFree,handsFree:function(){return hfOn;},setDest:setDest,startNav:startNav,endNav:endNav,listen:listen,mapUrl:mapUrl,music:function(){return {tracks:tracks,idx:tIdx,src:playerPlugin()?NP.src:audio.getAttribute('src'),paused:mPaused(),native:!!playerPlugin(),np:NP};},hsv2rgb:hsv2rgb,rgb2hs:rgb2hs,command:runCommand,navigate:navigate,live:live,state:state,obd:Obd,obdAttach:obdAttach,obdRx:obdRx,obdDrop:obdDrop,obdBytes:obdBytes,setDemo:setDemo,feed:feed,sunUT:sunUT,version:'0.5.1'};
+window.DRIVORA={setNoise:setNoise,parse:parseCmd,norm:cmdNorm,alternatives:runAlternatives,setHandsFree:setHandsFree,handsFree:function(){return hfOn;},setDest:setDest,startNav:startNav,endNav:endNav,listen:listen,mapUrl:mapUrl,music:function(){return {tracks:tracks,idx:tIdx,src:playerPlugin()?NP.src:audio.getAttribute('src'),paused:mPaused(),native:!!playerPlugin(),np:NP};},hsv2rgb:hsv2rgb,rgb2hs:rgb2hs,command:runCommand,navigate:navigate,live:live,state:state,obd:Obd,obdAttach:obdAttach,obdRx:obdRx,obdDrop:obdDrop,obdBytes:obdBytes,setDemo:setDemo,feed:feed,sunUT:sunUT,version:'0.6.0'};
 })();
 </script>
 </body>

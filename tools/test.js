@@ -57,7 +57,7 @@ function wait(ms){return new Promise(function(r){setTimeout(r,ms);});}
   ok(cm.singlish==='nav|kandy','Singlish "kandy walata yamu" ('+cm.singlish+')');
   ok(cm.sinhala==='nav|මහනුවර','Sinhala "mahanuwarata yamu" locks the place ('+cm.sinhala+')');
   ok(cm.sinhala2==='nav|කොළඹ','Sinhala "kolamba walata yanna ona" ('+cm.sinhala2+')');
-  ok(cm.end==='navend'&&cm.startNone==='unknown','cancel navigation; "start" without a destination is not guidance');
+  ok(cm.end==='navend'&&cm.startNone==='nodest','cancel navigation; "start" without a destination is not guidance ('+cm.startNone+')');
   ok(cm.speedSi==='speed'&&cm.speedSing==='speed'&&cm.speed==='speed','speed question in Sinhala, Singlish and English');
   ok(/^time\|It is \d{1,2}:\d\d (AM|PM)\.$/.test(cm.time),'time question ('+cm.time+')');
   ok(cm.fuel==='fuel'&&cm.map==='map'&&cm.trail==='trail','fuel, show map, show trail');
@@ -65,6 +65,32 @@ function wait(ms){return new Promise(function(r){setTimeout(r,ms);});}
   ok(cm.unknown==='unknown|No destination','unknown words do not set a destination');
   ok(cm.trip==='trip|0'&&cm.hud==='hud','reset trip and hud commands');
   await wait(300);await p.screenshot({path:'/tmp/t_hud.png'});
+  // the same command said many ways
+  var pz=await p.evaluate(function(){
+    var P=function(s){var r=DRIVORA.parse(s);return r.k+(r.q?':'+r.q:'')+(r.go?'!':'');},cases=[
+      ['Hey Jarvis open google map','map'],['open google maps','map'],['show me the map','map'],['Jarvis, can you open the map please?','map'],['where am I','map'],
+      ['go to Matara','nav:matara'],['goto Matara','nav:matara'],['take me to Galle please','nav:galle'],['navigate to Kandy','nav:kandy'],
+      ['I want to go to Nuwara Eliya','nav:nuwara eliya'],['how do I get to Ella','nav:ella'],['directions to Colombo','nav:colombo'],['drive me to Jaffna','nav:jaffna'],
+      ['change destination to Matara','nav:matara'],['matara yamu','nav:matara'],['start navigation to Matara','nav:matara!'],['is go to Matara','nav:matara'],
+      ['play some music','play'],['put on some songs','play'],['can you play music for me','play'],['resume','play'],['music','play'],['play Ran Tharu','playname:ran tharu'],
+      ['stop the music','pause'],['stop','pause'],['mute','pause'],['next song please','next'],['skip this one','next'],['change the song','next'],
+      ['previous song','prev'],['go back','prev'],['volume up','vol'],['turn it down','vol'],['how fast am I going','speed'],['what is the speed','speed'],
+      ["what's my top speed",'topq'],['when is the next service','service'],['cancel the route','navend'],['stop navigation','navend'],["let's go",'start'],
+      ['stop listening','sleep'],['what time is it now','time'],['play rock and roll','playname:rock and roll']],bad=[],i,g;
+    for(i=0;i<cases.length;i++){g=P(cases[i][0]);if(g!==cases[i][1])bad.push(cases[i][0]+' => '+g+' (want '+cases[i][1]+')');}
+    var T=function(){return document.getElementById('bTitle').textContent;},r={bad:bad,n:cases.length};
+    r.vol=DRIVORA.parse('volume 50').v;
+    r.combo=DRIVORA.command('open google maps and go to Matara')+'|'+T();
+    r.alt=DRIVORA.alternatives(['go tomato','go to Galle','go to gal'])+'|'+T()+'|'+document.getElementById('jHeard').textContent;
+    r.unk=DRIVORA.command('blah blah')+'|'+document.getElementById('jMsg').textContent;
+    r.mapMsg=(DRIVORA.command('Hey Jarvis open google map'),document.getElementById('jMsg').textContent);
+    DRIVORA.endNav();DRIVORA.state.set.mvol=1;return r;});
+  ok(pz.bad.length===0,'the same command said '+pz.n+' different ways is understood'+(pz.bad.length?': '+pz.bad.join('; '):''));
+  ok(pz.vol===0.5,'"volume 50" sets half volume');
+  ok(pz.combo==='nav|Matara','"open google maps and go to Matara" does both ('+pz.combo+')');
+  ok(pz.alt==='nav|Galle|“go to Galle”','the recognizer\'s second guess is used when the first makes no sense ('+pz.alt+')');
+  ok(/^unknown\|Sorry, I heard “blah blah”/.test(pz.unk),'not understood: says what it heard ('+pz.unk+')');
+  ok(/^The map (?:is on screen|shows|appears|needs)/.test(pz.mapMsg),'"open google map" shows the map ('+pz.mapMsg+')');
   await p.evaluate(function(){DRIVORA.command('exit hud');});
   // OBD: simulated ELM327 adapter
   var o=await p.evaluate(function(){return new Promise(function(done){
@@ -201,44 +227,54 @@ function wait(ms){return new Promise(function(r){setTimeout(r,ms);});}
   ok(nc.asked===true&&nc.on==='1|1|Noise cancellation is on','noise cancellation turns on and is saved: '+nc.on);
   ok(/^0\|Noise cancellation does not work/.test(nc.failed),'noise cancellation switches off when the phone cannot do it: '+nc.failed);
   ok(nc.old==='0|Noise cancellation needs Android 13 or newer','old Android gets a clear message: '+nc.old);
-  ok((await p.evaluate(function(){return DRIVORA.onHeard('Travis play music');}))==='command','"Travis" is taken as the wake word');
   await p.evaluate(function(){DRIVORA.command('pause');});
-  // hands-free wake word
+  // hands-free: the on-device wake word sends "wake", then the command's guesses, then "commandEnd"
   var hf=await p.evaluate(function(){return new Promise(function(done){
-    var V=window.Capacitor.Plugins.Voice,L={},r={};window._spoken=[];DRIVORA.state.set.talk=1;
-    window._hfL=L;V.addListener=function(n,f){L[n]=f;};V.startHandsFree=function(o){r.lang=o.lang;return Promise.resolve();};V.stopHandsFree=function(){r.stopped=true;return Promise.resolve();};
-    r.before=DRIVORA.onHeard('hey jarvis play music')+'';
+    var V=window.Capacitor.Plugins.Voice,L={},r={};window._spoken=[];DRIVORA.state.set.talk=1;DRIVORA.state.set.sens='h';
+    window._hfL=L;V.addListener=function(n,f){L[n]=f;};
+    V.startHandsFree=function(o){if(!r.opts)r.opts=o.lang+'|'+o.threshold+'|'+o.nc;return Promise.resolve({on:true,background:true});};
+    V.stopHandsFree=function(){r.stopped=true;return Promise.resolve();};
+    V.setWake=function(o){r.setWake=JSON.stringify(o);return Promise.resolve({});};
+    V.listen=function(){r.listenHF=true;return Promise.resolve({handsFree:true});};
     DRIVORA.setHandsFree(true,true);
     setTimeout(function(){
-      var T=function(){return document.getElementById('bTitle').textContent;},A=document.getElementById('audio');
-      r.on=DRIVORA.handsFree();r.saved=JSON.parse(localStorage.getItem('drivora.v1')).set.wake;r.idle=window._spoken[window._spoken.length-1];
-      A.pause();L.heard({text:'the radio is talking about play music and go to Kandy'});r.ignored=A.paused+'|'+T();
-      L.heard({text:'Hey Jarvis play music'});r.play=window._spoken[window._spoken.length-1];
-      L.heard({text:'jarvis, go to Kandy'});r.nav=T();
-      L.heard({text:'OK Jarvis what is my speed'});r.speed=window._spoken[window._spoken.length-1];
-      L.heard({text:'හේ ජාවිස් ඊළඟ සින්දුව'});r.si=window._spoken[window._spoken.length-1];
-      var n=window._spoken.length;L.heard({text:'Hey Jarvis'});r.armed=document.getElementById('orb').classList.contains('busy')+'|'+(window._spoken.length===n)+'|'+A.volume;
-      L.heard({text:'cancel navigation'});r.afterArm=T()+'|'+document.getElementById('orb').classList.contains('busy')+'|'+A.volume;
-      L.heard({text:'cancel navigation'});r.notArmed=window._spoken[window._spoken.length-1];
-      r.words=[DRIVORA.onHeard('my service is due'),DRIVORA.onHeard('jarvisville road'),DRIVORA.onHeard('')].join(',');
-      document.getElementById('mic').click();r.micArms=document.getElementById('orb').classList.contains('busy');
-      DRIVORA.setHandsFree(false,true);r.off=!DRIVORA.handsFree()&&r.stopped&&JSON.parse(localStorage.getItem('drivora.v1')).set.wake===0;
-      A.pause();done(r);
+      var T=function(){return document.getElementById('bTitle').textContent;},A=document.getElementById('audio'),O=document.getElementById('orb'),
+        S=function(){return window._spoken[window._spoken.length-1];},M=function(){return document.getElementById('jMsg').textContent;};
+      r.on=DRIVORA.handsFree();r.saved=JSON.parse(localStorage.getItem('drivora.v1')).set.wake;r.idle=S();
+      A.pause();
+      var n=window._spoken.length;L.wake({score:0.9});r.wake=O.classList.contains('busy')+'|'+A.volume+'|'+M()+'|'+(window._spoken.length===n);
+      L.command({texts:['Hey Jarvis play music']});r.play=S()+'|'+O.classList.contains('busy')+'|'+A.volume;
+      L.commandEnd({error:''});r.afterEnd=S();
+      L.wake({});L.command({texts:['open google map']});L.commandEnd({error:''});r.map=S();
+      L.wake({});L.command({texts:['go to Kandy']});L.commandEnd({error:''});r.kandy=T();
+      L.wake({});L.command({texts:['go tomato','go to Matara','go to murder']});L.commandEnd({error:''});r.matara=T()+'|'+document.getElementById('jHeard').textContent;
+      L.wake({});L.command({texts:['blah blah']});L.commandEnd({error:''});r.unknown=S();
+      L.wake({});n=window._spoken.length;L.commandEnd({error:'nothing'});r.nothing=O.classList.contains('busy')+'|'+A.volume+'|'+(window._spoken.length===n)+'|'+M();
+      L.micProblem({message:'The microphone gives no sound. Another app may be using it, or it is muted.'});r.problem=document.getElementById('toast').textContent;
+      document.getElementById('mic').click();r.micHF=!!r.listenHF;
+      document.querySelector('#sSens button[data-v="n"]').click();r.sens=DRIVORA.state.set.sens;
+      L.handsFree({on:false,error:''});r.notif=DRIVORA.handsFree()+'|'+JSON.parse(localStorage.getItem('drivora.v1')).set.wake+'|'+M();
+      DRIVORA.setHandsFree(true,false);
+      setTimeout(function(){
+        r.again=DRIVORA.handsFree();
+        DRIVORA.setHandsFree(false,true);r.off=!DRIVORA.handsFree()&&r.stopped&&JSON.parse(localStorage.getItem('drivora.v1')).set.wake===0;
+        DRIVORA.endNav();A.pause();done(r);
+      },60);
     },150);});});
-  ok(hf.before==='command','wake phrase parser works on its own');
-  ok(hf.on===true&&hf.saved===1&&hf.lang==='si-LK','hands-free starts with the chosen language and is remembered');
+  ok(hf.on===true&&hf.saved===1&&hf.opts==='si-LK|0.3|false','hands-free starts with the language, "wake more easily" and noise settings, and is remembered ('+hf.opts+')');
   ok(/Hands-free is on/.test(hf.idle),'turning it on is confirmed aloud');
-  ok(hf.ignored==='true|No destination','speech without the wake word does nothing ('+hf.ignored+')');
-  ok(hf.play==='Playing Ran Tharu.','"Hey Jarvis play music" plays music ('+hf.play+')');
-  ok(hf.nav==='Kandy','"jarvis, go to Kandy" locks the destination');
-  ok(/^You are doing \d+ kilometres per hour\.$/.test(hf.speed)||hf.speed==='I have no speed reading yet.','"OK Jarvis what is my speed" ('+hf.speed+')');
-  ok(/^Next song/.test(hf.si),'Sinhala wake phrase + command ('+hf.si+')');
-  ok(hf.armed==='true|true|0.15','"Hey Jarvis" alone arms: chime only, music turned down ('+hf.armed+')');
-  ok(hf.afterArm==='No destination|false|1','the next sentence is taken as the command, then it disarms ('+hf.afterArm+')');
-  ok(hf.notArmed==='Destination cleared.','same sentence again without the wake word is ignored');
-  ok(hf.words==='ignored,ignored,empty','similar words do not wake it ('+hf.words+')');
-  ok(hf.micArms===true,'mic button while hands-free is on skips the wake word');
-  ok(hf.off===true,'turning hands-free off stops listening and is remembered');
+  ok(hf.wake==='true|0.15|Listening…|true','"Hey Jarvis" heard: listening shown, music turned down, nothing spoken ('+hf.wake+')');
+  ok(hf.play==='Playing Ran Tharu.|false|1','the command runs and the music comes back up ('+hf.play+')');
+  ok(hf.afterEnd==='Playing Ran Tharu.','the end of listening does not talk over the reply');
+  ok(/^The map /.test(hf.map),'"Hey Jarvis, open google map" works ('+hf.map+')');
+  ok(hf.kandy==='Kandy'&&hf.matara==='Matara|“go to Matara”','"go to Kandy", then "go to Matara" moves the destination to Matara ('+hf.matara+')');
+  ok(/^Sorry, I heard/.test(hf.unknown),'not understood: says what it heard ('+hf.unknown+')');
+  ok(hf.nothing==='false|1|true|Say “Hey Jarvis”','nothing said after "Hey Jarvis": music back up, quietly waits again ('+hf.nothing+')');
+  ok(/microphone gives no sound/.test(hf.problem),'a silent or busy microphone is reported');
+  ok(hf.micHF===true,'mic button while hands-free is on starts a command');
+  ok(hf.sens==='n'&&hf.setWake==='{"threshold":0.5}','changing how easily it wakes takes effect at once ('+hf.setWake+')');
+  ok(/^false\|0\|Hands-free is off/.test(hf.notif),'Stop on the notification turns hands-free off ('+hf.notif+')');
+  ok(hf.again===true&&hf.off===true,'turning hands-free on and off again works and is remembered');
   await p.screenshot({path:'/tmp/t_assistant.png'});
   // native music player (installed app): songs play outside the WebView so listening cannot pause them
   var np=await p.evaluate(function(){return new Promise(function(done){
@@ -253,22 +289,24 @@ function wait(ms){return new Promise(function(r){setTimeout(r,ms);});}
       write:function(o){files[o.key]=(o.append?(files[o.key]||''):'')+o.data;if(o.last)C.push('written:'+o.key);return Promise.resolve();},
       drop:function(o){delete files[o.key];C.push('drop:'+o.key);return Promise.resolve();},clear:function(){C.push('clear');return Promise.resolve();}};
     var A=document.getElementById('audio');A.pause();r.oldSrc=A.getAttribute('src');var L=window._hfL;
+    var cmd=function(t){L.wake({});L.command({texts:[t]});L.commandEnd({error:''});};
     DRIVORA.setHandsFree(true,false);
     setTimeout(function(){
-      L.heard({text:'Hey Jarvis play music'});
+      cmd('Hey Jarvis play music');
       setTimeout(function(){
         var m=DRIVORA.music();r.native=m.native;r.src=m.np.src;r.calls=C.join(',');r.elem=A.paused+'|'+(A.getAttribute('src')===r.oldSrc);
         r.b64=(function(){for(var k in files)return atob(files[k]).length;return 0;})();
         C.length=0;
-        L.heard({text:'Hey Jarvis play music'});r.again=C.join(',')+'|'+DRIVORA.music().paused;
+        cmd('Hey Jarvis play music');r.again=C.join(',')+'|'+DRIVORA.music().paused;
         PL.tick({pos:5000,dur:180000,playing:true});r.tick=document.getElementById('mCur').textContent+'|'+document.getElementById('mDur').textContent;
         C.length=0;L.speech({on:true});L.speech({on:false});r.talk=C.join(',');
-        C.length=0;L.heard({text:'Hey Jarvis'});r.arm=C.join(',');L.heard({text:'pause'});r.armPause=C.join(',')+'|'+DRIVORA.music().paused;
+        C.length=0;L.wake({});r.arm=C.join(',');L.command({texts:['pause']});L.commandEnd({error:''});r.armPause=C.join(',')+'|'+DRIVORA.music().paused;
         C.length=0;PL.button({action:'play'});r.btn=C.join(',')+'|'+DRIVORA.music().paused;
+        C.length=0;DRIVORA.command('volume down');r.vol=C.join(',');DRIVORA.command('volume 100');
         C.length=0;DRIVORA.command('previous');r.prev=C.join(',');
         C.length=0;PL.ended();r.ended=C.join(',')+'|'+DRIVORA.music().paused;
         DRIVORA.setHandsFree(false,false);
-        C.length=0;var P2=DRIVORA.music();r.reuse=null;
+        C.length=0;
         DRIVORA.command('next');
         setTimeout(function(){r.reuse=C.join(',');delete window.Capacitor.Plugins.Player;done(r);},200);
       },400);
@@ -277,11 +315,12 @@ function wait(ms){return new Promise(function(r){setTimeout(r,ms);});}
   ok(np.native===true&&/^key:s_f/.test(np.src),'installed app plays through the native player ('+np.src+')');
   ok(/^written:s_f[^,]*,play:s_f[^,]*,(vol:1,)?meta:Ran Tharu/.test(np.calls)&&np.b64===16044,'an added song is copied once to the native player, then played ('+np.calls+', '+np.b64+' bytes)');
   ok(np.elem==='true|true','the WebView audio element stays unused ('+np.elem+')');
-  ok(np.again==='|false','"play music" again while playing changes nothing ('+np.again+')');
+  ok(np.again==='vol:0.15,vol:1|false','"play music" again while playing only dips the volume while listening ('+np.again+')');
   ok(np.tick==='0:05|3:00','progress comes from the native player ('+np.tick+')');
   ok(np.talk==='vol:0.15,vol:1','spoken replies turn the music down, then back up ('+np.talk+')');
   ok(np.arm==='vol:0.15'&&np.armPause==='vol:0.15,vol:1,pause|true','"Hey Jarvis" ducks the native player, "pause" pauses it ('+np.arm+' / '+np.armPause+')');
   ok(np.btn==='resume|false','steering-wheel play button resumes ('+np.btn+')');
+  ok(np.vol==='vol:0.8','"volume down" lowers the music ('+np.vol+')');
   ok(np.prev==='seek:0','"previous" after 4 s restarts the song ('+np.prev+')');
   ok(np.ended==='pause|true','end of the last song stops ('+np.ended+')');
   ok(/^play:s_f/.test(np.reuse)&&np.reuse.indexOf('written')<0,'the copied song is reused, not copied again ('+np.reuse+')');
