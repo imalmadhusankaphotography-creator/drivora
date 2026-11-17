@@ -201,6 +201,7 @@ body.over #spd{color:var(--warn);text-shadow:0 0 .25em rgba(255,59,78,.5)}
 .fld{margin-bottom:1.3rem}
 .fld>label,.fld>.lbl{display:block;color:var(--dim);font-size:1.5rem;margin-bottom:.4rem}
 .fld .inp{width:100%}
+.vlog{font-size:1.2rem;line-height:1.45;color:var(--dim);max-height:16rem;overflow:auto;white-space:pre-wrap;border:1px solid rgba(255,255,255,.12);border-radius:.6rem;padding:.6rem .8rem}
 .two{display:flex;margin:0 -.6rem}.two>.fld{flex:1;margin-left:.6rem;margin-right:.6rem;min-width:0}
 .seg{display:flex;flex-wrap:wrap}
 .seg button{height:4.2rem;padding:0 1.4rem;margin:0 .6rem .6rem 0;border-radius:.9rem;border:1px solid rgba(255,255,255,.18);font-size:1.6rem}
@@ -374,6 +375,7 @@ body.ptab .right{grid-column:2;grid-row:2;max-width:none}
     <div class="fld"><span class="lbl">Hands-free: say "Hey Jarvis"</span><div class="seg" id="sWake"><button data-v="1">On</button><button data-v="0">Off</button></div></div>
     <div class="fld"><span class="lbl">How easily "Hey Jarvis" wakes</span><div class="seg" id="sSens"><button data-v="l">Less</button><button data-v="n">Normal</button><button data-v="h">More</button></div></div>
     <div class="fld"><span class="lbl">Noise cancellation for voice</span><div class="seg" id="sNc"><button data-v="1">On</button><button data-v="0">Off</button></div></div>
+    <div class="fld"><span class="lbl">Voice log: what Jarvis heard and did</span><div class="vlog" id="vLog">Nothing yet.</div></div>
     <div class="fld"><span class="lbl">Voice command language</span><div class="seg" id="sVlang"><button data-v="en-US">English</button><button data-v="si-LK">සිංහල</button></div></div>
     <div class="fld"><span class="lbl">Spoken replies</span><div class="seg" id="sTalk"><button data-v="1">On</button><button data-v="0">Off</button></div></div>
     <div class="fld"><span class="lbl">Screen brightness</span><div class="seg" id="sTheme"><button data-v="auto">Dim after sunset</button><button data-v="day">Always bright</button><button data-v="night">Always dim</button></div></div>
@@ -1499,11 +1501,12 @@ $('mic').onclick=listen;$('orb').onclick=listen;
    An on-device wake word model listens all the time in the installed app (no speech service, no sounds,
    no data while waiting). When it hears "Hey Jarvis" a tone plays, music turns down, and the speech
    recognizer takes the command. A notification keeps it listening while Google Maps is in front. */
-var hfOn=false,hfBound=false,wakeT=null;
+var hfOn=false,hfBound=false,wakeT=null,vlog=[];
+function vLog(m){var d=new Date();vlog.push(pad2(d.getHours())+':'+pad2(d.getMinutes())+':'+pad2(d.getSeconds())+'  '+m);if(vlog.length>40)vlog.shift();var e=$('vLog');if(e)e.textContent=vlog.slice().reverse().join('\n');}
 var WAKE_THR={l:0.7,n:0.5,h:0.3};
 function wakeThr(){return WAKE_THR[state.set.sens]||0.5;}
 function idleMsg(){return hfOn?'Say “Hey Jarvis”':'Tap the mic and speak';}
-function wakeUI(){heard('');$('orb').classList.add('busy');duck(true);say('Listening…',true);clearTimeout(wakeT);wakeT=setTimeout(function(){wakeDone();say(idleMsg(),true);},15000);}
+function wakeUI(){heard('');$('orb').classList.add('busy');duck(true);say('Listening…',true);clearTimeout(wakeT);wakeT=setTimeout(function(){wakeDone();say(idleMsg(),true);},25000);}
 function wakeDone(){clearTimeout(wakeT);wakeT=null;$('orb').classList.remove('busy');duck(false);}
 function hfOff(msg){hfOn=false;state.set.wake=0;save();wakeDone();if($('sWake'))segSet($('sWake'),0);if(msg)say(msg,true);}
 function setHandsFree(on,tell){
@@ -1512,9 +1515,11 @@ function setHandsFree(on,tell){
   if(!p||!p.startHandsFree){if(tell){say('Hey Jarvis works in the installed app.',true);toast('Hey Jarvis works in the installed app');}if($('sWake'))segSet($('sWake'),0);return;}
   if(!hfBound&&p.addListener){hfBound=true;
     p.addListener('wake',function(){if(hfOn)wakeUI();});
-    p.addListener('command',function(e){var l=e&&e.texts;if(typeof l==='string')l=[l];wakeDone();if(l&&l.length)runAlternatives(l);});
-    p.addListener('commandEnd',function(e){var er=(e&&e.error)||'';if(!wakeT)return;wakeDone();if(er==='nothing'||er==='stopped')say(idleMsg(),true);else if(er)say(er,true);});
-    p.addListener('micProblem',function(e){var m=(e&&e.message)||'The microphone is not working.';toast(m);say(m,true);});
+    p.addListener('command',function(e){var l=e&&e.texts;if(typeof l==='string')l=[l];wakeDone();if(l&&l.length)vLog('did: '+runAlternatives(l));});
+    p.addListener('commandEnd',function(e){var er=(e&&e.error)||'';if(!wakeT)return;wakeDone();if(er==='stopped')say(idleMsg(),true);else if(er==='nothing')say('I did not hear a command.');else if(er)say(er);});
+    p.addListener('retry',function(e){wakeUI();say(e&&e.mic?'Say that again after the beep':'Say that again',true);});
+    p.addListener('voiceLog',function(e){if(e&&e.msg)vLog(e.msg);});
+    p.addListener('micProblem',function(e){var m=(e&&e.message)||'The microphone is not working.';toast(m);say(m);});
     p.addListener('handsFree',function(e){if(e&&e.on===false)hfOff(e.error||'Hands-free is off. Tap the mic to speak.');});}
   p.startHandsFree({lang:state.set.vlang||'en-US',threshold:wakeThr(),nc:!!+state.set.nc}).then(function(r){
     hfOn=true;state.set.wake=1;save();if($('sWake'))segSet($('sWake'),1);
@@ -1629,7 +1634,7 @@ if(+state.set.nc&&voicePlugin())setNoise(true,false);
 if(+state.set.wake&&voicePlugin())setTimeout(function(){setHandsFree(true,false);},1200);
 
 /* hooks for the AI agent and for tests */
-window.DRIVORA={setNoise:setNoise,parse:parseCmd,norm:cmdNorm,alternatives:runAlternatives,setHandsFree:setHandsFree,handsFree:function(){return hfOn;},setDest:setDest,startNav:startNav,endNav:endNav,listen:listen,mapUrl:mapUrl,music:function(){return {tracks:tracks,idx:tIdx,src:playerPlugin()?NP.src:audio.getAttribute('src'),paused:mPaused(),native:!!playerPlugin(),np:NP};},hsv2rgb:hsv2rgb,rgb2hs:rgb2hs,command:runCommand,navigate:navigate,live:live,state:state,obd:Obd,obdAttach:obdAttach,obdRx:obdRx,obdDrop:obdDrop,obdBytes:obdBytes,setDemo:setDemo,feed:feed,sunUT:sunUT,version:'0.6.0'};
+window.DRIVORA={setNoise:setNoise,parse:parseCmd,norm:cmdNorm,alternatives:runAlternatives,setHandsFree:setHandsFree,handsFree:function(){return hfOn;},setDest:setDest,startNav:startNav,endNav:endNav,listen:listen,mapUrl:mapUrl,music:function(){return {tracks:tracks,idx:tIdx,src:playerPlugin()?NP.src:audio.getAttribute('src'),paused:mPaused(),native:!!playerPlugin(),np:NP};},hsv2rgb:hsv2rgb,rgb2hs:rgb2hs,command:runCommand,navigate:navigate,live:live,state:state,obd:Obd,obdAttach:obdAttach,obdRx:obdRx,obdDrop:obdDrop,obdBytes:obdBytes,setDemo:setDemo,feed:feed,sunUT:sunUT,version:'0.6.1'};
 })();
 </script>
 </body>

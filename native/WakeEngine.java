@@ -53,6 +53,8 @@ final class WakeEngine {
     private volatile boolean effects = false;
     private volatile float threshold = 0.5f;
     private volatile boolean listening = false;
+    private volatile boolean micOpen = false;
+    private volatile AudioRecord current;
     private Thread thread;
 
     private final short[] ring = new short[RING];
@@ -117,6 +119,30 @@ final class WakeEngine {
     /** let go of the microphone for a while (another recognizer needs it), or take it back */
     void suspendMic(boolean on) {
         paused = on;
+        if (on) {
+            /* stop now instead of after the current 80 ms read */
+            AudioRecord r = current;
+            if (r != null) {
+                try {
+                    r.stop();
+                } catch (Throwable ignored) {}
+            }
+        }
+    }
+
+    /** true while this engine holds the microphone */
+    boolean micOpen() {
+        return micOpen;
+    }
+
+    /** how long the recognizer has left our audio unread (0 if it keeps reading) */
+    synchronized long teeBlockedMs() {
+        return tee == null ? 0 : tee.blockedMs();
+    }
+
+    /** whether the audio sent to the recognizer had anything as loud as speech in it */
+    synchronized boolean teeHadSound() {
+        return tee != null && tee.peak > 1200;
     }
 
     /** Send the microphone sound, starting prerollMs before now, into out until stopTee(). */
@@ -190,8 +216,10 @@ final class WakeEngine {
                     listening = false;
                     if (fx != null) fx.release();
                     fx = null;
+                    current = null;
                     release(rec);
                     rec = null;
+                    micOpen = false;
                     reopen = false;
                     if (paused) {
                         sleep(80);
@@ -213,6 +241,8 @@ final class WakeEngine {
                         sleep(1500);
                         continue;
                     }
+                    current = rec;
+                    micOpen = true;
                     if (effects) fx = new Effects(rec.getAudioSessionId());
                     det.reset();
                     quietSince = System.currentTimeMillis();
@@ -234,8 +264,10 @@ final class WakeEngine {
                         listening = false;
                         if (fx != null) fx.release();
                         fx = null;
+                        current = null;
                         release(rec);
                         rec = null;
+                        micOpen = false;
                         sleep(500);
                     }
                     continue;
@@ -276,9 +308,13 @@ final class WakeEngine {
                 post("Hey Jarvis stopped: " + e.getClass().getSimpleName());
             }
         } finally {
-            if (my == gen) listening = false;
+            if (my == gen) {
+                listening = false;
+                current = null;
+            }
             if (fx != null) fx.release();
             release(rec);
+            if (my == gen) micOpen = false;
             close(mel, emb, word);
         }
     }
@@ -411,7 +447,14 @@ final class WakeEngine {
         private final OutputStream out;
         private final LinkedBlockingQueue<byte[]> q = new LinkedBlockingQueue<byte[]>(400);
         private volatile boolean open = true;
+        private volatile long writing = 0;
+        volatile int peak = 0;
         private static final byte[] END = new byte[0];
+
+        long blockedMs() {
+            long w = writing;
+            return w == 0 ? 0 : System.currentTimeMillis() - w;
+        }
 
         Tee(OutputStream out) {
             this.out = out;
@@ -427,6 +470,8 @@ final class WakeEngine {
             if (!open) return false;
             byte[] b = new byte[n * 2];
             for (int i = 0; i < n; i++) {
+                int v = Math.abs((int) s[i]);
+                if (v > peak) peak = v;
                 b[2 * i] = (byte) (s[i] & 0xff);
                 b[2 * i + 1] = (byte) ((s[i] >> 8) & 0xff);
             }
@@ -445,7 +490,9 @@ final class WakeEngine {
                 while (true) {
                     byte[] b = q.poll(15, TimeUnit.SECONDS);
                     if (b == null || b == END) break;
+                    writing = System.currentTimeMillis();
                     out.write(b);
+                    writing = 0;
                 }
             } catch (Throwable ignored) {
                 /* the recognizer closed its end */

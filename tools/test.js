@@ -250,6 +250,7 @@ function wait(ms){return new Promise(function(r){setTimeout(r,ms);});}
       L.wake({});L.command({texts:['go tomato','go to Matara','go to murder']});L.commandEnd({error:''});r.matara=T()+'|'+document.getElementById('jHeard').textContent;
       L.wake({});L.command({texts:['blah blah']});L.commandEnd({error:''});r.unknown=S();
       L.wake({});n=window._spoken.length;L.commandEnd({error:'nothing'});r.nothing=O.classList.contains('busy')+'|'+A.volume+'|'+(window._spoken.length===n)+'|'+M();
+      L.wake({});L.retry({mic:true});r.retry=O.classList.contains('busy')+'|'+M();L.voiceLog({msg:'speech service error 5: client'});r.vlog=document.getElementById('vLog').textContent;L.commandEnd({error:'nothing'});
       L.micProblem({message:'The microphone gives no sound. Another app may be using it, or it is muted.'});r.problem=document.getElementById('toast').textContent;
       document.getElementById('mic').click();r.micHF=!!r.listenHF;
       document.querySelector('#sSens button[data-v="n"]').click();r.sens=DRIVORA.state.set.sens;
@@ -269,7 +270,9 @@ function wait(ms){return new Promise(function(r){setTimeout(r,ms);});}
   ok(/^The map /.test(hf.map),'"Hey Jarvis, open google map" works ('+hf.map+')');
   ok(hf.kandy==='Kandy'&&hf.matara==='Matara|“go to Matara”','"go to Kandy", then "go to Matara" moves the destination to Matara ('+hf.matara+')');
   ok(/^Sorry, I heard/.test(hf.unknown),'not understood: says what it heard ('+hf.unknown+')');
-  ok(hf.nothing==='false|1|true|Say “Hey Jarvis”','nothing said after "Hey Jarvis": music back up, quietly waits again ('+hf.nothing+')');
+  ok(hf.nothing==='false|1|false|I did not hear a command.','nothing said after "Hey Jarvis": music back up, and it says so aloud ('+hf.nothing+')');
+  ok(hf.retry==='true|Say that again after the beep','when a way of hearing fails it asks again and keeps listening ('+hf.retry+')');
+  ok(/speech service error 5: client/.test(hf.vlog)&&/did: nav/.test(hf.vlog),'the voice log in Settings shows what happened');
   ok(/microphone gives no sound/.test(hf.problem),'a silent or busy microphone is reported');
   ok(hf.micHF===true,'mic button while hands-free is on starts a command');
   ok(hf.sens==='n'&&hf.setWake==='{"threshold":0.5}','changing how easily it wakes takes effect at once ('+hf.setWake+')');

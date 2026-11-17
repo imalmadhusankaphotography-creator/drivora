@@ -2,6 +2,7 @@ package com.imal.drivora;
 
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.media.AudioFormat;
 import android.media.AudioManager;
 import android.media.AudioRecord;
@@ -83,15 +84,16 @@ public class VoicePlugin extends Plugin implements WakeEngine.Listener {
     private String hfLang = "en-US";
     private PluginCall hfCall;
     private boolean capturing = false;
-    private boolean feedOk = Build.VERSION.SDK_INT >= 33;
-    private boolean usingFeed = false;
-    private boolean gotSpeech = false;
-    private int feedEmpty = 0;
     private ParcelFileDescriptor feedRead;
     private ToneGenerator tone;
     private final Runnable capTimeout = new Runnable() {
         @Override
         public void run() {
+            if (!capturing) return;
+            if (curMode != M_MIC) {
+                modeFailed("no answer from the speech service");
+                return;
+            }
             try {
                 if (recognizer != null) recognizer.cancel();
             } catch (Exception ignored) {}
@@ -270,6 +272,7 @@ public class VoicePlugin extends Plugin implements WakeEngine.Listener {
                     @Override
                     public void run() {
                         hfLang = lang;
+                        ensureTts();
                         if (engine == null) engine = new WakeEngine(getContext(), VoicePlugin.this);
                         engine.setThreshold(thr == null ? 0.5f : thr.floatValue());
                         engine.setEffects(Boolean.TRUE.equals(nc) || noiseOn);
@@ -349,7 +352,7 @@ public class VoicePlugin extends Plugin implements WakeEngine.Listener {
         o.put("on", hfOn);
         o.put("background", HandsFreeService.running);
         o.put("listening", engine != null && engine.listening());
-        o.put("feed", feedOk);
+        o.put("mode", savedMode < 0 ? prefs().getInt("mode", M_DEVICE) : savedMode);
         return o;
     }
 
@@ -384,6 +387,7 @@ public class VoicePlugin extends Plugin implements WakeEngine.Listener {
             }
             return;
         }
+        log(engine != null && engine.listening() ? "listening for Hey Jarvis" : "Hey Jarvis model loaded, microphone not open yet");
         if (hfCall != null) {
             PluginCall c = hfCall;
             hfCall = null;
@@ -394,6 +398,7 @@ public class VoicePlugin extends Plugin implements WakeEngine.Listener {
     @Override
     public void onWake(float score) {
         if (!hfOn || capturing) return;
+        log("Hey Jarvis heard (score " + Math.round(score * 100) / 100.0 + ")");
         JSObject o = new JSObject();
         o.put("score", score);
         notifyListeners("wake", o);
@@ -402,60 +407,125 @@ public class VoicePlugin extends Plugin implements WakeEngine.Listener {
 
     @Override
     public void onProblem(String message) {
+        log(message);
         JSObject o = new JSObject();
         o.put("message", message);
         notifyListeners("micProblem", o);
     }
 
+    /* ---------- the command after "Hey Jarvis" ----------
+       Three ways to hear it, best first. Phones differ, so the first one that works is remembered:
+         0  on-device recognizer, given the app's own audio (Android 13+, English)
+         1  the normal speech service, given the app's own audio (Android 13+)
+         2  the normal speech service with its own microphone (every phone; say the command after the tone)
+       With 0 and 1, "Hey Jarvis go to Kandy" in one breath works, because the words right after
+       "Jarvis" are already in the app's audio. */
+    private static final int M_DEVICE = 0, M_FEED = 1, M_MIC = 2;
+    private static final String[] MODE_NAME = { "on-device speech, app audio", "speech service, app audio", "speech service, own microphone" };
+    private int savedMode = -1;
+    private int curMode = M_MIC;
+    private boolean retried = false;
+    private boolean recBegan = false;
+    private int misses = 0;
+    private Runnable afterSpeech;
+    private final Runnable stallCheck = new Runnable() {
+        @Override
+        public void run() {
+            if (!capturing || curMode == M_MIC || engine == null) return;
+            long b = engine.teeBlockedMs();
+            if (b > 600) modeFailed("the speech service is not reading the app's audio");
+        }
+    };
+
+    private SharedPreferences prefs() {
+        return getContext().getSharedPreferences("drivora.voice", Context.MODE_PRIVATE);
+    }
+
+    private boolean modeOk(int m) {
+        boolean feed = Build.VERSION.SDK_INT >= 33 && engine != null && engine.listening();
+        if (m == M_DEVICE) {
+            if (!feed || !hfLang.toLowerCase(Locale.US).startsWith("en")) return false;
+            try {
+                return SpeechRecognizer.isOnDeviceRecognitionAvailable(getContext());
+            } catch (Throwable e) {
+                return false;
+            }
+        }
+        if (m == M_FEED) return feed;
+        return true;
+    }
+
+    private int pick(int from) {
+        for (int m = Math.max(0, from); m < M_MIC; m++) if (modeOk(m)) return m;
+        return M_MIC;
+    }
+
+    private void log(String msg) {
+        JSObject o = new JSObject();
+        o.put("msg", msg);
+        notifyListeners("voiceLog", o);
+    }
+
     /* main thread only: listen for the command that follows "Hey Jarvis" */
     private void beginCommand() {
         capturing = true;
-        gotSpeech = false;
-        chime();
+        retried = false;
+        if (savedMode < 0) savedMode = prefs().getInt("mode", M_DEVICE);
         try {
             if (!SpeechRecognizer.isRecognitionAvailable(getContext())) {
-                endCommand("This device has no speech recognition. Install the Google app.");
+                chime();
+                endCommand("This phone has no speech recognition. Install or turn on the Google app.");
                 return;
             }
         } catch (Exception e) {
-            endCommand("This device has no speech recognition. Install the Google app.");
+            endCommand("This phone has no speech recognition. Install or turn on the Google app.");
             return;
         }
-        startRecognizer(feedOk && Build.VERSION.SDK_INT >= 33 && engine != null && engine.listening());
+        curMode = pick(savedMode);
+        chime();
+        startRecognizer(curMode);
     }
 
-    private void startRecognizer(final boolean feed) {
+    private void startRecognizer(final int m) {
         destroyRecognizer();
         closeFeed();
-        usingFeed = feed;
+        if (engine != null) engine.stopTee();
+        recBegan = false;
+        curMode = m;
+        log("listening for the command: " + MODE_NAME[m]);
         try {
-            recognizer = SpeechRecognizer.createSpeechRecognizer(getContext());
+            recognizer = m == M_DEVICE ? SpeechRecognizer.createOnDeviceSpeechRecognizer(getContext()) : SpeechRecognizer.createSpeechRecognizer(getContext());
             recognizer.setRecognitionListener(
                 new Listener() {
                     @Override
-                    public void onBeginningOfSpeech() {
-                        gotSpeech = true;
-                    }
-
-                    @Override
                     public void onReadyForSpeech(Bundle params) {
+                        log("speech service ready");
                         main.removeCallbacks(unmute);
                         main.postDelayed(unmute, 350);
                     }
 
                     @Override
+                    public void onBeginningOfSpeech() {
+                        recBegan = true;
+                    }
+
+                    @Override
                     public void onError(int error) {
                         if (!capturing) return;
+                        log("speech service error " + error + ": " + errorName(error));
                         boolean empty = error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT;
-                        if (usingFeed && !empty && feedProblem(error)) {
-                            /* this speech service cannot take our audio: let it use the microphone itself from now on */
-                            feedOk = false;
-                            startRecognizer(false);
-                            return;
-                        }
-                        if (usingFeed && empty && !gotSpeech) {
-                            /* twice nothing at all through our audio: the service may be ignoring it */
-                            if (++feedEmpty >= 2) feedOk = false;
+                        if (curMode != M_MIC) {
+                            if (!empty && feedProblem(error)) {
+                                modeFailed("error " + error);
+                                return;
+                            }
+                            if (empty && !recBegan && engine != null && engine.teeHadSound()) {
+                                /* our audio had sound in it but the service heard no speech */
+                                if (++misses >= 2) {
+                                    modeFailed("it heard nothing twice");
+                                    return;
+                                }
+                            }
                         }
                         endCommand(empty ? "nothing" : describe(error));
                     }
@@ -463,14 +533,24 @@ public class VoicePlugin extends Plugin implements WakeEngine.Listener {
                     @Override
                     public void onResults(Bundle results) {
                         if (!capturing) return;
-                        if (usingFeed) feedEmpty = 0;
                         ArrayList<String> list = results == null ? null : results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
                         JSArray a = new JSArray();
-                        if (list != null) for (String s : list) if (s != null && s.trim().length() > 0) a.put(s);
-                        if (list == null || list.isEmpty() || first(results).length() == 0) {
+                        int n = 0;
+                        if (list != null) for (String s : list) if (s != null && s.trim().length() > 0) {
+                            a.put(s.trim());
+                            n++;
+                        }
+                        if (n == 0) {
+                            log("speech service heard nothing");
                             endCommand("nothing");
                             return;
                         }
+                        misses = 0;
+                        if (savedMode != curMode) {
+                            savedMode = curMode;
+                            prefs().edit().putInt("mode", curMode).apply();
+                        }
+                        log("heard “" + list.get(0) + "”");
                         JSObject o = new JSObject();
                         o.put("texts", a);
                         notifyListeners("command", o);
@@ -479,48 +559,122 @@ public class VoicePlugin extends Plugin implements WakeEngine.Listener {
                 }
             );
             final Intent i = intent(hfLang, 5);
-            if (feed) {
+            main.removeCallbacks(capTimeout);
+            main.postDelayed(capTimeout, 12000);
+            if (m != M_MIC) {
                 ParcelFileDescriptor[] pipe = ParcelFileDescriptor.createPipe();
                 feedRead = pipe[0];
                 OutputStream out = new ParcelFileDescriptor.AutoCloseOutputStream(pipe[1]);
-                engine.startTee(out, 250);
+                engine.startTee(out, retried ? 0 : 300);
                 i.putExtra("android.speech.extra.AUDIO_SOURCE", pipe[0]);
                 i.putExtra("android.speech.extra.AUDIO_SOURCE_CHANNEL_COUNT", 1);
                 i.putExtra("android.speech.extra.AUDIO_SOURCE_ENCODING", AudioFormat.ENCODING_PCM_16BIT);
                 i.putExtra("android.speech.extra.AUDIO_SOURCE_SAMPLING_RATE", WakeEngine.RATE);
                 quietBeep(true);
+                main.removeCallbacks(unmute);
+                main.postDelayed(unmute, 1500);
                 recognizer.startListening(i);
+                main.removeCallbacks(stallCheck);
+                main.postDelayed(stallCheck, 2500);
             } else {
                 /* give the microphone to the speech service, take it back when the command is done */
                 if (engine != null) engine.suspendMic(true);
-                quietBeep(true);
-                main.postDelayed(
+                waitMicThen(
                     new Runnable() {
                         @Override
                         public void run() {
                             if (!capturing || recognizer == null) return;
                             try {
+                                quietBeep(true);
+                                main.removeCallbacks(unmute);
+                                main.postDelayed(unmute, 1500);
                                 recognizer.startListening(i);
                             } catch (Exception e) {
                                 endCommand("Could not start listening.");
                             }
                         }
                     },
-                    180
+                    0
                 );
             }
-            main.removeCallbacks(unmute);
-            main.postDelayed(unmute, 1500);
-            main.removeCallbacks(capTimeout);
-            main.postDelayed(capTimeout, 12000);
-        } catch (Exception e) {
-            if (feed) {
-                feedOk = false;
-                startRecognizer(false);
+        } catch (Throwable e) {
+            log("could not start " + MODE_NAME[m] + ": " + e.getClass().getSimpleName());
+            if (m != M_MIC) {
+                modeFailed("could not start");
                 return;
             }
             endCommand("Could not start listening.");
         }
+    }
+
+    /* start once the wake word engine has let go of the microphone (at most about half a second) */
+    private void waitMicThen(final Runnable r, final int tries) {
+        if (engine == null || !engine.micOpen() || tries >= 12) {
+            main.postDelayed(r, 60);
+            return;
+        }
+        main.postDelayed(
+            new Runnable() {
+                @Override
+                public void run() {
+                    waitMicThen(r, tries + 1);
+                }
+            },
+            40
+        );
+    }
+
+    /* main thread only: this way of hearing the command does not work on this phone; use the next one */
+    private void modeFailed(String why) {
+        main.removeCallbacks(stallCheck);
+        main.removeCallbacks(capTimeout);
+        final int next = pick(curMode + 1);
+        log(MODE_NAME[curMode] + " does not work here (" + why + "). Next: " + MODE_NAME[next]);
+        misses = 0;
+        savedMode = next;
+        prefs().edit().putInt("mode", next).apply();
+        destroyRecognizer();
+        closeFeed();
+        if (engine != null) engine.stopTee();
+        if (retried && next == curMode) {
+            endCommand("I could not hear the command. Try again.");
+            return;
+        }
+        retried = true;
+        JSObject o = new JSObject();
+        o.put("mic", next == M_MIC);
+        notifyListeners("retry", o);
+        sayThen(
+            next == M_MIC ? "Sorry, please say that again after the beep." : "Sorry, please say that again.",
+            new Runnable() {
+                @Override
+                public void run() {
+                    if (!capturing) return;
+                    chime();
+                    startRecognizer(next);
+                }
+            }
+        );
+    }
+
+    private void sayThen(String text, final Runnable then) {
+        afterSpeech = then;
+        final Runnable fire = new Runnable() {
+            @Override
+            public void run() {
+                Runnable r = afterSpeech;
+                afterSpeech = null;
+                if (r != null) r.run();
+            }
+        };
+        if (tts != null && ttsReady) {
+            try {
+                tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "jarvis-retry");
+                main.postDelayed(fire, 5000);
+                return;
+            } catch (Exception ignored) {}
+        }
+        main.postDelayed(fire, 300);
     }
 
     private static boolean feedProblem(int error) {
@@ -529,12 +683,46 @@ public class VoicePlugin extends Plugin implements WakeEngine.Listener {
             case SpeechRecognizer.ERROR_NETWORK_TIMEOUT:
             case SpeechRecognizer.ERROR_SERVER:
             case SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS:
-            case SpeechRecognizer.ERROR_RECOGNIZER_BUSY:
-            case 12: /* language not supported */
-            case 13: /* language unavailable */
+            case SpeechRecognizer.ERROR_NO_MATCH:
+            case SpeechRecognizer.ERROR_SPEECH_TIMEOUT:
                 return false;
             default:
                 return true;
+        }
+    }
+
+    private static String errorName(int e) {
+        switch (e) {
+            case 1:
+                return "network timeout";
+            case 2:
+                return "network";
+            case 3:
+                return "audio";
+            case 4:
+                return "server";
+            case 5:
+                return "client";
+            case 6:
+                return "no speech";
+            case 7:
+                return "no match";
+            case 8:
+                return "busy";
+            case 9:
+                return "no permission";
+            case 10:
+                return "too many requests";
+            case 11:
+                return "server disconnected";
+            case 12:
+                return "language not supported";
+            case 13:
+                return "language not available";
+            case 14:
+                return "cannot check support";
+            default:
+                return "unknown";
         }
     }
 
@@ -542,7 +730,9 @@ public class VoicePlugin extends Plugin implements WakeEngine.Listener {
     private void endCommand(String error) {
         if (!capturing) return;
         capturing = false;
+        afterSpeech = null;
         main.removeCallbacks(capTimeout);
+        main.removeCallbacks(stallCheck);
         if (engine != null) engine.stopTee();
         destroyRecognizer();
         closeFeed();
@@ -679,19 +869,7 @@ public class VoicePlugin extends Plugin implements WakeEngine.Listener {
                             if (tts == null) {
                                 queuedText = text;
                                 queuedLang = lang;
-                                tts =
-                                    new TextToSpeech(
-                                        getContext(),
-                                        new TextToSpeech.OnInitListener() {
-                                            @Override
-                                            public void onInit(int status) {
-                                                ttsReady = (status == TextToSpeech.SUCCESS);
-                                                if (ttsReady) watchSpeech();
-                                                if (ttsReady && queuedText != null) sayNow(queuedText, queuedLang);
-                                                queuedText = null;
-                                            }
-                                        }
-                                    );
+                                ensureTts();
                             } else if (ttsReady) {
                                 sayNow(text, lang);
                             } else {
@@ -717,11 +895,13 @@ public class VoicePlugin extends Plugin implements WakeEngine.Listener {
                     @Override
                     public void onDone(String id) {
                         speech(false);
+                        if ("jarvis-retry".equals(id)) runAfterSpeech();
                     }
 
                     @Override
                     public void onError(String id) {
                         speech(false);
+                        if ("jarvis-retry".equals(id)) runAfterSpeech();
                     }
 
                     /* a newer reply cut this one off: without this the music stayed turned down */
@@ -731,6 +911,39 @@ public class VoicePlugin extends Plugin implements WakeEngine.Listener {
                     }
                 }
             );
+        } catch (Exception ignored) {}
+    }
+
+    private void runAfterSpeech() {
+        main.post(
+            new Runnable() {
+                @Override
+                public void run() {
+                    Runnable r = afterSpeech;
+                    afterSpeech = null;
+                    if (r != null) r.run();
+                }
+            }
+        );
+    }
+
+    /* main thread only */
+    private void ensureTts() {
+        if (tts != null) return;
+        try {
+            tts =
+                new TextToSpeech(
+                    getContext(),
+                    new TextToSpeech.OnInitListener() {
+                        @Override
+                        public void onInit(int status) {
+                            ttsReady = (status == TextToSpeech.SUCCESS);
+                            if (ttsReady) watchSpeech();
+                            if (ttsReady && queuedText != null) sayNow(queuedText, queuedLang);
+                            queuedText = null;
+                        }
+                    }
+                );
         } catch (Exception ignored) {}
     }
 

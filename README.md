@@ -59,6 +59,12 @@ breath works; on older Android, wait for the tone. A notification ("Listening fo
 Stop button) keeps it listening while Google Maps is in front. Settings: how easily it wakes
 (Less / Normal / More) and noise cancellation (the phone's noise suppressor, echo canceller and gain control).
 
+Phones differ in how their speech service accepts audio, so the command is heard one of three ways,
+best first: the on-device recognizer given the app's audio, the speech service given the app's audio,
+or the speech service with its own microphone. If one does not work (it ignores the app's audio,
+errors, or never answers) Jarvis says "please say that again", switches to the next, and remembers
+the one that works. Settings shows a **Voice log** of what was heard and which way was used.
+
 **Commands are understood by meaning, not exact words.** Fillers ("can you", "please", "for me") are
 dropped, key words are found anywhere in the sentence, "and" / "then" joins two commands, and when the
 recognizer's first guess makes no sense its other guesses are tried. If nothing fits, Jarvis says
