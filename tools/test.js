@@ -180,6 +180,29 @@ function wait(ms){return new Promise(function(r){setTimeout(r,ms);});}
   await p.evaluate(function(){DRIVORA.state.set.talk=0;DRIVORA.command('time');});
   ok((await p.evaluate(function(){return window._spoken.length;}))===ns,'spoken replies off stays silent');
   await p.evaluate(function(){DRIVORA.command('pause');DRIVORA.endNav();});
+  // noise cancellation option
+  var nc=await p.evaluate(function(){return new Promise(function(done){
+    var V=window.Capacitor.Plugins.Voice,r={},L={};
+    DRIVORA.setNoise(true,true);r.noPlugin=DRIVORA.state.set.nc+'|'+document.getElementById('toast').textContent;
+    V.addListener=function(n,f){L[n]=f;};
+    V.setNoise=function(o){r.asked=o.on;return Promise.resolve({on:o.on,supported:true,suppressor:true});};
+    DRIVORA.setNoise(true,true);
+    setTimeout(function(){
+      r.on=DRIVORA.state.set.nc+'|'+JSON.parse(localStorage.getItem('drivora.v1')).set.nc+'|'+document.getElementById('toast').textContent;
+      L.noise({on:false,error:'Noise cancellation does not work with this phone\'s speech service. It is off now.'});
+      r.failed=DRIVORA.state.set.nc+'|'+document.getElementById('toast').textContent;
+      V.setNoise=function(o){return Promise.resolve({on:false,supported:false});};
+      DRIVORA.setNoise(true,true);
+      setTimeout(function(){r.old=DRIVORA.state.set.nc+'|'+document.getElementById('toast').textContent;r.row=!!document.getElementById('sNc');done(r);},60);
+    },60);
+  });});
+  ok(nc.row,'settings has a noise cancellation row');
+  ok(nc.noPlugin==='0|Noise cancellation works in the installed app','noise cancellation without the app stays off: '+nc.noPlugin);
+  ok(nc.asked===true&&nc.on==='1|1|Noise cancellation is on','noise cancellation turns on and is saved: '+nc.on);
+  ok(/^0\|Noise cancellation does not work/.test(nc.failed),'noise cancellation switches off when the phone cannot do it: '+nc.failed);
+  ok(nc.old==='0|Noise cancellation needs Android 13 or newer','old Android gets a clear message: '+nc.old);
+  ok((await p.evaluate(function(){return DRIVORA.onHeard('Travis play music');}))==='command','"Travis" is taken as the wake word');
+  await p.evaluate(function(){DRIVORA.command('pause');});
   // hands-free wake word
   var hf=await p.evaluate(function(){return new Promise(function(done){
     var V=window.Capacitor.Plugins.Voice,L={},r={};window._spoken=[];DRIVORA.state.set.talk=1;

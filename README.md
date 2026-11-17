@@ -44,6 +44,12 @@ A small helper for simple driving tasks, called Jarvis. With hands-free on (Sett
 next sentence. Or tap the mic, or type.
 It understands English, plus basic Sinhala and Singlish phrases.
 
+Settings has **Noise cancellation for voice** (Android 13+): the app records the microphone itself,
+runs the phone's noise suppressor, echo canceller and gain control plus a low-rumble filter over it,
+and gives the cleaned sound to the speech recognizer. If the phone's speech service cannot take it,
+the option switches itself off and listening carries on as before. The assistant panel also shows
+the last sentence the microphone picked up, so you can see what it heard.
+
 - "go to Kandy" / "lock destination to Galle" / "mahanuwarata yamu" - locks the destination and shows the route
 - "start" - begins guidance in Google Maps; "cancel navigation" clears it
 - "play music", "pause", "next", "previous", "play <song name>", "shuffle on"

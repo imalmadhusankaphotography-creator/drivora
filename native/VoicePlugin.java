@@ -2,11 +2,18 @@ package com.imal.drivora;
 
 import android.content.Context;
 import android.content.Intent;
+import android.media.AudioFormat;
 import android.media.AudioManager;
+import android.media.AudioRecord;
+import android.media.MediaRecorder;
+import android.media.audiofx.AcousticEchoCanceler;
+import android.media.audiofx.AutomaticGainControl;
+import android.media.audiofx.NoiseSuppressor;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.ParcelFileDescriptor;
 import android.speech.RecognitionListener;
 import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
@@ -19,6 +26,7 @@ import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 import com.getcapacitor.annotation.Permission;
 import com.getcapacitor.annotation.PermissionCallback;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Locale;
 
@@ -34,6 +42,12 @@ import java.util.Locale;
  *       keeps listening and sends every sentence it hears as a "heard" { text } event;
  *       the web layer looks for the wake word ("Hey Jarvis") in it.
  *       "handsFree" { on, error } is sent if listening has to stop.
+ *   setNoise({ on })       -> { on, supported, suppressor, echo, gain }
+ *   noiseInfo()            -> same
+ *       Noise cancellation: the app records the microphone itself, runs the phone's noise suppressor,
+ *       echo canceller and gain control plus a low-rumble filter over it, and hands the cleaned sound
+ *       to the speech recognizer. Needs Android 13+. "noise" { on:false, error } is sent if the
+ *       phone's speech service cannot take the cleaned sound, and listening carries on without it.
  */
 @CapacitorPlugin(name = "Voice", permissions = { @Permission(alias = "mic", strings = { "android.permission.RECORD_AUDIO" }) })
 public class VoicePlugin extends Plugin {
@@ -50,6 +64,10 @@ public class VoicePlugin extends Plugin {
     private boolean hfOnDevice = true;
     private String hfLang = "en-US";
     private int hfErrors = 0;
+    private boolean noiseOn = false;
+    private boolean noiseActive = false;
+    private Capture capture;
+
     private final Runnable hfRestart = new Runnable() {
         @Override
         public void run() {
@@ -141,6 +159,11 @@ public class VoicePlugin extends Plugin {
 
                                     @Override
                                     public void onError(int error) {
+                                        if (noiseActive && error != SpeechRecognizer.ERROR_NO_MATCH && error != SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
+                                            noiseFailed();
+                                            finish(null, "Noise cancellation does not work with this phone's speech service. It is off now. Try again.");
+                                            return;
+                                        }
                                         finish(null, describe(error));
                                     }
 
@@ -163,6 +186,7 @@ public class VoicePlugin extends Plugin {
                             i.putExtra(RecognizerIntent.EXTRA_LANGUAGE, lang);
                             i.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3);
                             i.putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, getContext().getPackageName());
+                            attachNoise(i);
                             recognizer.startListening(i);
                         } catch (Exception e) {
                             finish(null, "Could not start listening.");
@@ -321,6 +345,12 @@ public class VoicePlugin extends Plugin {
                             notifyListeners("handsFree", o);
                             return;
                         }
+                        if (noiseActive) {
+                            /* the speech service could not take our cleaned sound: carry on with the plain microphone */
+                            noiseFailed();
+                            hfAgain(300);
+                            return;
+                        }
                         if (usedOnDevice) {
                             /* the offline recognizer cannot do this language: use the normal one */
                             hfOnDevice = false;
@@ -353,6 +383,7 @@ public class VoicePlugin extends Plugin {
             i.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1);
             i.putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true);
             i.putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, getContext().getPackageName());
+            attachNoise(i);
             quietBeep(true);
             main.removeCallbacks(hfUnmute);
             main.postDelayed(hfUnmute, 1500);
@@ -405,11 +436,227 @@ public class VoicePlugin extends Plugin {
     }
 
     private void destroyRecognizer() {
+        stopCapture();
         if (recognizer != null) {
             try {
                 recognizer.destroy();
             } catch (Exception ignored) {}
             recognizer = null;
+        }
+    }
+
+    /* ---------- noise cancellation ---------- */
+
+    @PluginMethod
+    public void setNoise(final PluginCall call) {
+        final boolean on = Boolean.TRUE.equals(call.getBoolean("on", false));
+        getActivity()
+            .runOnUiThread(
+                new Runnable() {
+                    @Override
+                    public void run() {
+                        noiseOn = on && Build.VERSION.SDK_INT >= 33;
+                        if (hfOn) hfAgain(100);
+                        call.resolve(noiseState());
+                    }
+                }
+            );
+    }
+
+    @PluginMethod
+    public void noiseInfo(PluginCall call) {
+        call.resolve(noiseState());
+    }
+
+    private JSObject noiseState() {
+        JSObject o = new JSObject();
+        boolean ns = false, aec = false, agc = false;
+        try {
+            ns = NoiseSuppressor.isAvailable();
+        } catch (Throwable ignored) {}
+        try {
+            aec = AcousticEchoCanceler.isAvailable();
+        } catch (Throwable ignored) {}
+        try {
+            agc = AutomaticGainControl.isAvailable();
+        } catch (Throwable ignored) {}
+        o.put("on", noiseOn);
+        o.put("supported", Build.VERSION.SDK_INT >= 33);
+        o.put("suppressor", ns);
+        o.put("echo", aec);
+        o.put("gain", agc);
+        return o;
+    }
+
+    /* main thread only. Gives the recognizer our own cleaned microphone sound instead of the raw microphone. */
+    private void attachNoise(Intent i) {
+        noiseActive = false;
+        if (!noiseOn || Build.VERSION.SDK_INT < 33) return;
+        Capture c = new Capture();
+        try {
+            ParcelFileDescriptor fd = c.start();
+            i.putExtra("android.speech.extra.AUDIO_SOURCE", fd);
+            i.putExtra("android.speech.extra.AUDIO_SOURCE_CHANNEL_COUNT", 1);
+            i.putExtra("android.speech.extra.AUDIO_SOURCE_ENCODING", AudioFormat.ENCODING_PCM_16BIT);
+            i.putExtra("android.speech.extra.AUDIO_SOURCE_SAMPLING_RATE", Capture.RATE);
+            capture = c;
+            noiseActive = true;
+        } catch (Throwable e) {
+            c.stop(main);
+            noiseFailed();
+        }
+    }
+
+    /* main thread only */
+    private void stopCapture() {
+        noiseActive = false;
+        if (capture != null) {
+            capture.stop(main);
+            capture = null;
+        }
+    }
+
+    /* main thread only */
+    private void noiseFailed() {
+        noiseOn = false;
+        stopCapture();
+        JSObject o = new JSObject();
+        o.put("on", false);
+        o.put("error", "Noise cancellation does not work with this phone's speech service. It is off now.");
+        notifyListeners("noise", o);
+    }
+
+    /** Records the microphone with the phone's voice filters on and writes the cleaned sound into a pipe. */
+    private static final class Capture {
+
+        static final int RATE = 16000;
+        private AudioRecord rec;
+        private NoiseSuppressor ns;
+        private AcousticEchoCanceler aec;
+        private AutomaticGainControl agc;
+        private ParcelFileDescriptor readEnd;
+        private volatile boolean run = false;
+        private boolean released = false;
+
+        ParcelFileDescriptor start() throws Exception {
+            int min = AudioRecord.getMinBufferSize(RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT);
+            if (min <= 0) throw new IllegalStateException("no mic format");
+            rec = new AudioRecord(
+                MediaRecorder.AudioSource.VOICE_RECOGNITION,
+                RATE,
+                AudioFormat.CHANNEL_IN_MONO,
+                AudioFormat.ENCODING_PCM_16BIT,
+                Math.max(min * 4, 16384)
+            );
+            if (rec.getState() != AudioRecord.STATE_INITIALIZED) throw new IllegalStateException("mic busy");
+            int sid = rec.getAudioSessionId();
+            try {
+                if (NoiseSuppressor.isAvailable()) {
+                    ns = NoiseSuppressor.create(sid);
+                    if (ns != null) ns.setEnabled(true);
+                }
+            } catch (Throwable ignored) {}
+            try {
+                if (AcousticEchoCanceler.isAvailable()) {
+                    aec = AcousticEchoCanceler.create(sid);
+                    if (aec != null) aec.setEnabled(true);
+                }
+            } catch (Throwable ignored) {}
+            try {
+                if (AutomaticGainControl.isAvailable()) {
+                    agc = AutomaticGainControl.create(sid);
+                    if (agc != null) agc.setEnabled(true);
+                }
+            } catch (Throwable ignored) {}
+            ParcelFileDescriptor[] pipe = ParcelFileDescriptor.createPipe();
+            readEnd = pipe[0];
+            final OutputStream out = new ParcelFileDescriptor.AutoCloseOutputStream(pipe[1]);
+            rec.startRecording();
+            if (rec.getRecordingState() != AudioRecord.RECORDSTATE_RECORDING) {
+                try {
+                    out.close();
+                } catch (Exception ignored) {}
+                throw new IllegalStateException("mic busy");
+            }
+            run = true;
+            Thread t = new Thread(
+                new Runnable() {
+                    @Override
+                    public void run() {
+                        short[] buf = new short[1024];
+                        byte[] bytes = new byte[2048];
+                        /* first-order high-pass at about 120 Hz: takes out engine and road rumble */
+                        final float a = 0.955f;
+                        float px = 0f, py = 0f;
+                        try {
+                            while (run) {
+                                int n = rec.read(buf, 0, buf.length);
+                                if (n <= 0) break;
+                                for (int k = 0; k < n; k++) {
+                                    float x = buf[k];
+                                    float y = a * (py + x - px);
+                                    px = x;
+                                    py = y;
+                                    int v = Math.round(y);
+                                    if (v > 32767) v = 32767; else if (v < -32768) v = -32768;
+                                    bytes[2 * k] = (byte) (v & 0xff);
+                                    bytes[2 * k + 1] = (byte) ((v >> 8) & 0xff);
+                                }
+                                out.write(bytes, 0, 2 * n);
+                            }
+                        } catch (Throwable ignored) {
+                            /* the recognizer closed its end, or the recorder was stopped */
+                        } finally {
+                            try {
+                                out.close();
+                            } catch (Exception ignored) {}
+                            release();
+                        }
+                    }
+                },
+                "jarvis-noise"
+            );
+            t.setDaemon(true);
+            t.start();
+            return readEnd;
+        }
+
+        void stop(Handler h) {
+            run = false;
+            try {
+                if (rec != null) rec.stop();
+            } catch (Throwable ignored) {}
+            try {
+                if (readEnd != null) readEnd.close();
+            } catch (Throwable ignored) {}
+            readEnd = null;
+            /* the writer thread lets go of the microphone; make sure of it even if it is stuck on a full pipe */
+            h.postDelayed(
+                new Runnable() {
+                    @Override
+                    public void run() {
+                        release();
+                    }
+                },
+                400
+            );
+        }
+
+        private synchronized void release() {
+            if (released) return;
+            released = true;
+            try {
+                if (ns != null) ns.release();
+            } catch (Throwable ignored) {}
+            try {
+                if (aec != null) aec.release();
+            } catch (Throwable ignored) {}
+            try {
+                if (agc != null) agc.release();
+            } catch (Throwable ignored) {}
+            try {
+                if (rec != null) rec.release();
+            } catch (Throwable ignored) {}
         }
     }
 
@@ -488,6 +735,7 @@ public class VoicePlugin extends Plugin {
         main.removeCallbacks(hfRestart);
         main.removeCallbacks(hfUnmute);
         quietBeep(false);
+        stopCapture();
         try {
             if (recognizer != null) recognizer.destroy();
         } catch (Exception ignored) {}
