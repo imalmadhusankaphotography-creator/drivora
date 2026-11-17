@@ -18,6 +18,7 @@ import android.speech.RecognitionListener;
 import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
 import android.speech.tts.TextToSpeech;
+import android.speech.tts.UtteranceProgressListener;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.PermissionState;
 import com.getcapacitor.Plugin;
@@ -42,6 +43,7 @@ import java.util.Locale;
  *       keeps listening and sends every sentence it hears as a "heard" { text } event;
  *       the web layer looks for the wake word ("Hey Jarvis") in it.
  *       "handsFree" { on, error } is sent if listening has to stop.
+ *   "speech" { on } is sent when a spoken reply starts and ends, so the page can turn the music down.
  *   setNoise({ on })       -> { on, supported, suppressor, echo, gain }
  *   noiseInfo()            -> same
  *       Noise cancellation: the app records the microphone itself, runs the phone's noise suppressor,
@@ -703,6 +705,7 @@ public class VoicePlugin extends Plugin {
                                             @Override
                                             public void onInit(int status) {
                                                 ttsReady = (status == TextToSpeech.SUCCESS);
+                                                if (ttsReady) watchSpeech();
                                                 if (ttsReady && queuedText != null) sayNow(queuedText, queuedLang);
                                                 queuedText = null;
                                             }
@@ -719,6 +722,35 @@ public class VoicePlugin extends Plugin {
                     }
                 }
             );
+    }
+
+    private void watchSpeech() {
+        try {
+            tts.setOnUtteranceProgressListener(
+                new UtteranceProgressListener() {
+                    @Override
+                    public void onStart(String id) {
+                        speech(true);
+                    }
+
+                    @Override
+                    public void onDone(String id) {
+                        speech(false);
+                    }
+
+                    @Override
+                    public void onError(String id) {
+                        speech(false);
+                    }
+                }
+            );
+        } catch (Exception ignored) {}
+    }
+
+    private void speech(boolean on) {
+        JSObject o = new JSObject();
+        o.put("on", on);
+        notifyListeners("speech", o);
     }
 
     private void sayNow(String text, String lang) {

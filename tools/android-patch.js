@@ -7,7 +7,7 @@ function must(c,m){if(!c){console.error('PATCH FAILED: '+m);process.exit(1);}}
 must(fs.existsSync(pkgDir),'android project not found - run "npx cap add android" first');
 
 // 1. native sources
-['MainActivity.java','ObdLinkPlugin.java','MediaLibPlugin.java','VoicePlugin.java'].forEach(function(f){fs.copyFileSync(path.join(root,'native',f),path.join(pkgDir,f));});
+['MainActivity.java','ObdLinkPlugin.java','MediaLibPlugin.java','VoicePlugin.java','PlayerPlugin.java'].forEach(function(f){fs.copyFileSync(path.join(root,'native',f),path.join(pkgDir,f));});
 
 // 2. manifest permissions
 var mf=path.join(app,'src/main/AndroidManifest.xml'),m=fs.readFileSync(mf,'utf8');

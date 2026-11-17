@@ -1015,6 +1015,59 @@ function renderTripKv(){
 /* ---------- music (the list is kept between runs) ---------- */
 var audio=$('audio'),tracks=[],tIdx=-1,shuf=false,rep=0,MKEY='drivora.music.v1',playTok=0,mdb=null,mFilter='',scanAsked=false;
 function mediaPlugin(){var c=window.Capacitor;return(c&&c.Plugins&&c.Plugins.MediaLib)?c.Plugins.MediaLib:null;}
+/* In the installed app songs play in a native player. The WebView pauses its own audio whenever the speech
+   recognizer takes audio focus, which happens every time hands-free listening restarts. */
+function playerPlugin(){var c=window.Capacitor;return(c&&c.Plugins&&c.Plugins.Player&&c.Plugins.Player.play)?c.Plugins.Player:null;}
+var NP={src:'',want:false,playing:false,pos:0,dur:0,vol:1,bound:false},duckArm=false,duckTalk=false,talkT=null;
+function nIgnore(pr){try{if(pr&&pr['catch'])pr['catch'](function(){});}catch(e){}}
+function mPaused(){return playerPlugin()?!NP.want:audio.paused;}
+function mPos(){return playerPlugin()?NP.pos/1000:audio.currentTime;}
+function mDur(){var d=playerPlugin()?NP.dur/1000:audio.duration;return(d&&isFinite(d))?d:0;}
+function mSeek(sec){var P=playerPlugin();sec=Math.max(0,sec);if(P){if(NP.src){NP.pos=sec*1000;nIgnore(P.seek({ms:Math.round(sec*1000)}));mProgress();}return;}audio.currentTime=sec;}
+function mPause(){var P=playerPlugin();if(P){NP.want=false;if(NP.src)nIgnore(P.pause());mUpdate();return;}audio.pause();}
+function mProgress(){var d=mDur(),c=mPos();$('mFill').style.width=(d?Math.min(100,c/d*100):0)+'%';$('mCur').textContent=fmtTime(c);$('mDur').textContent=fmtTime(d);}
+function applyVol(){var v=(duckArm||duckTalk)?0.15:1,P=playerPlugin();try{audio.volume=v;}catch(e){}if(P&&NP.src&&v!==NP.vol){NP.vol=v;nIgnore(P.volume({v:v}));}}
+function nBind(P){
+  if(NP.bound||!P.addListener)return;NP.bound=true;
+  P.addListener('tick',function(e){if(!e)return;NP.pos=+e.pos||0;NP.dur=+e.dur||0;var was=NP.playing;NP.playing=!!e.playing;mProgress();if(was!==NP.playing)mUpdate();});
+  P.addListener('ended',function(){NP.want=false;NP.playing=false;mNext(true);});
+  P.addListener('error',function(e){NP.src='';NP.want=false;NP.playing=false;mUpdate();toast((e&&e.message)||'This song could not be played');});
+  P.addListener('button',function(e){var a=e&&e.action;if(a==='play'){if(mPaused())mToggle();}else if(a==='pause')mPause();else if(a==='next')mNext(false);else if(a==='prev')mPrev();});
+}
+/* a song added with "Add files" lives in IndexedDB; copy it once into the native player's folder */
+function nCache(u,key,cb){
+  var P=playerPlugin(),CH=393216,x=new XMLHttpRequest();
+  try{x.open('GET',u);x.responseType='blob';}catch(e){cb(false);return;}
+  x.onload=function(){
+    var b=x.response,off=0,n=b?b.size:0;if(!n){cb(false);return;}
+    if(n>3000000)toast('Getting the song ready');
+    function next(){
+      var fr=new FileReader(),last=off+CH>=n;
+      fr.onload=function(){var r=String(fr.result),c=r.indexOf(',');
+        P.write({key:key,data:r.substr(c+1),append:off>0,last:last}).then(function(){off+=CH;if(last)cb(true);else next();})['catch'](function(){cb(false);});};
+      fr.onerror=function(){cb(false);};
+      fr.readAsDataURL(b.slice(off,Math.min(n,off+CH)));
+    }
+    next();
+  };
+  x.onerror=function(){cb(false);};
+  try{x.send();}catch(e){cb(false);}
+}
+function nLoad(t,u,my){
+  var P=playerPlugin();nBind(P);
+  function go(arg){
+    if(my!==playTok)return;
+    NP.src=arg.uri||('key:'+arg.key);NP.want=true;NP.playing=false;NP.pos=0;NP.dur=0;mUpdate();mProgress();
+    P.play(arg).then(function(r){if(my!==playTok)return;NP.dur=(r&&+r.dur)||0;NP.playing=true;applyVol();nIgnore(P.meta({title:t.name,artist:t.artist||''}));mUpdate();mProgress();})
+      ['catch'](function(e){if(my!==playTok)return;NP.src='';NP.want=false;mUpdate();toast((e&&e.message)||'This song could not be played');});
+  }
+  if(t.kind==='dev'){go({uri:t.uri});return;}
+  var key='s_'+t.id;
+  P.has({key:key}).then(function(r){
+    if(r&&r.ok){go({key:key});return;}
+    nCache(u,key,function(ok){if(my!==playTok)return;if(ok)go({key:key});else toast('Could not get the song ready. Storage may be full.');});
+  })['catch'](function(){toast('Could not get the song ready');});
+}
 function dbOpen(cb){
   if(mdb){cb(mdb);return;}
   try{var rq=indexedDB.open('drivora',1);
@@ -1049,7 +1102,7 @@ function mUpdate(){
   var t=tracks[tIdx],n=tracks.length;
   $('mTitle').textContent=t?t.name:(n?'Ready to play':'No music yet');
   $('mSub').textContent=t?(t.artist||('Song '+(tIdx+1)+' of '+n)):(n?n+' song'+(n>1?'s':'')+' in your list':(mediaPlugin()?'Find the songs on this device':'Add songs from this device'));
-  $('mPlay').innerHTML=icon(!audio.paused&&t?'pause':'play');
+  $('mPlay').innerHTML=icon(!mPaused()&&t?'pause':'play');
   tog($('mShuf'),'act',shuf);tog($('mShuf'),'dimi',!shuf);tog($('mRep'),'act',rep>0);tog($('mRep'),'dimi',rep===0);
   if(has($('shMusic'),'show'))mList();
 }
@@ -1064,30 +1117,32 @@ function mList(){
   if(tracks.length&&!n)h='<p>No song matches that search.</p>';
   $('mList').innerHTML=h;
 }
-function mStart(){var p=audio.play();if(p&&p['catch'])p['catch'](function(){});}
+function mStart(){var P=playerPlugin();if(P){if(!NP.src)return;NP.want=true;nIgnore(P.resume());mUpdate();return;}var p=audio.play();if(p&&p['catch'])p['catch'](function(){});}
 function mPlayAt(i){
   var n=tracks.length;if(!n)return;
   tIdx=((i%n)+n)%n;var t=tracks[tIdx],my=++playTok;mUpdate();mSave();
   mUrl(t,function(u){
     if(my!==playTok)return;
     if(!u){toast('That song is no longer stored. Remove it and add it again.');return;}
+    if(playerPlugin()){nLoad(t,u,my);return;}
     audio.src=u;mStart();mSession();
   });
 }
-function mLoaded(){return !!audio.getAttribute('src');}
-function mToggle(){if(!tracks.length){openMusic();return;}if(tIdx<0||!mLoaded()){mPlayAt(tIdx<0?0:tIdx);return;}if(audio.paused)mStart();else audio.pause();}
+function mLoaded(){return playerPlugin()?!!NP.src:!!audio.getAttribute('src');}
+function mToggle(){if(!tracks.length){openMusic();return;}if(tIdx<0||!mLoaded()){mPlayAt(tIdx<0?0:tIdx);return;}if(mPaused())mStart();else mPause();}
 function mNext(auto){
   var n=tracks.length;if(!n)return;
   if(auto&&rep===2){mPlayAt(tIdx);return;}
   if(shuf&&n>1){var r;do{r=Math.floor(Math.random()*n);}while(r===tIdx);mPlayAt(r);return;}
-  if(auto&&rep===0&&tIdx===n-1){audio.pause();mUpdate();return;}
+  if(auto&&rep===0&&tIdx===n-1){mPause();mUpdate();return;}
   mPlayAt(tIdx+1);
 }
-function mPrev(){if(!tracks.length)return;if(mLoaded()&&audio.currentTime>4){audio.currentTime=0;return;}mPlayAt(tIdx-1);}
-function mStop(){playTok++;audio.pause();audio.removeAttribute('src');try{audio.load();}catch(e){}$('mFill').style.width='0%';$('mCur').textContent='0:00';$('mDur').textContent='0:00';}
+function mPrev(){if(!tracks.length)return;if(mLoaded()&&mPos()>4){mSeek(0);return;}mPlayAt(tIdx-1);}
+function mStop(){var P=playerPlugin();playTok++;if(P&&NP.src)nIgnore(P.stop());NP.src='';NP.want=false;NP.playing=false;NP.pos=0;NP.dur=0;audio.pause();audio.removeAttribute('src');try{audio.load();}catch(e){}$('mFill').style.width='0%';$('mCur').textContent='0:00';$('mDur').textContent='0:00';}
 function mRemove(i){
   var t=tracks[i];if(!t)return;
   if(t.kind==='idb')dbDel(t.id);
+  if(t.kind!=='dev'&&playerPlugin())nIgnore(playerPlugin().drop({key:'s_'+t.id}));
   if(t.url&&t.kind!=='dev')try{URL.revokeObjectURL(t.url);}catch(e){}
   tracks.splice(i,1);
   if(i===tIdx){mStop();tIdx=tracks.length?Math.min(i,tracks.length-1):-1;}else if(i<tIdx)tIdx--;
@@ -1097,7 +1152,7 @@ function mSession(){
   try{var t=tracks[tIdx];if(t&&('mediaSession' in navigator)&&window.MediaMetadata)navigator.mediaSession.metadata=new window.MediaMetadata({title:t.name,artist:t.artist||'',album:'JARVIS Drive'});}catch(e){}
 }
 try{if('mediaSession' in navigator){ /* steering-wheel and headset buttons */
-  navigator.mediaSession.setActionHandler('play',function(){mToggle();});navigator.mediaSession.setActionHandler('pause',function(){audio.pause();});
+  navigator.mediaSession.setActionHandler('play',function(){mToggle();});navigator.mediaSession.setActionHandler('pause',function(){mPause();});
   navigator.mediaSession.setActionHandler('nexttrack',function(){mNext(false);});navigator.mediaSession.setActionHandler('previoustrack',function(){mPrev();});
 }}catch(e){}
 function mScan(){
@@ -1120,6 +1175,7 @@ $('mAdd').onclick=function(){$('mFiles').click();};
 $('mFind').oninput=function(){mFilter=trim(this.value);mList();};
 $('mClear').onclick=function(){confirmBar('Remove every song from the list?','Remove all',function(){
   var i;for(i=0;i<tracks.length;i++)if(tracks[i].kind==='idb')dbDel(tracks[i].id);
+  if(playerPlugin())nIgnore(playerPlugin().clear());
   tracks=[];tIdx=-1;mStop();mSave();mUpdate();mList();toast('Music list cleared');});};
 $('mFiles').onchange=function(){
   var f=this.files,list=[],i;
@@ -1141,8 +1197,8 @@ $('mFiles').onchange=function(){
 $('mList').onclick=function(e){var i=e.target.getAttribute('data-i'),x=e.target.getAttribute('data-x');if(i!==null&&i!=='')mPlayAt(+i);else if(x!==null&&x!=='')mRemove(+x);};
 audio.onplay=audio.onpause=mUpdate;audio.onended=function(){mNext(true);};
 audio.onerror=function(){if(mLoaded()&&tIdx>=0)toast('This song could not be played');};
-audio.ontimeupdate=function(){var d=audio.duration||0;if(!isFinite(d))d=0;$('mFill').style.width=(d?audio.currentTime/d*100:0)+'%';$('mCur').textContent=fmtTime(audio.currentTime);$('mDur').textContent=fmtTime(d);};
-$('mBar').onclick=function(e){var r=this.getBoundingClientRect(),d=audio.duration;if(d&&isFinite(d))audio.currentTime=Math.max(0,Math.min(1,(e.clientX-r.left)/r.width))*d;};
+audio.ontimeupdate=mProgress;
+$('mBar').onclick=function(e){var r=this.getBoundingClientRect(),d=mDur();if(d)mSeek(Math.max(0,Math.min(1,(e.clientX-r.left)/r.width))*d);};
 
 /* ---------- navigation + Google map ---------- */
 var navDest='',mapUrlNow='',mapDest=null,mapAt=0,mapPos=null;
@@ -1212,10 +1268,13 @@ $('destGo').onclick=destGo;$('dest').onkeydown=function(e){if(e.keyCode===13)des
    A small built-in helper for simple driving tasks. A fuller AI agent can replace or extend
    runCommand() later; everything it needs is on window.DRIVORA. */
 function voicePlugin(){var c=window.Capacitor;return(c&&c.Plugins&&c.Plugins.Voice)?c.Plugins.Voice:null;}
+var speechBound=false;
 function speak(t){
   if(!+state.set.talk)return;
   var p=voicePlugin();
-  if(p){try{p.speak({text:t,lang:'en-US'})['catch'](function(){});}catch(e){}return;}
+  if(p){
+    if(!speechBound&&p.addListener){speechBound=true;try{p.addListener('speech',function(e){clearTimeout(talkT);duckTalk=!!(e&&e.on);applyVol();if(duckTalk)talkT=setTimeout(function(){duckTalk=false;applyVol();},20000);});}catch(e0){}}
+    try{p.speak({text:t,lang:'en-US'})['catch'](function(){});}catch(e){}return;}
   try{if(window.speechSynthesis&&window.SpeechSynthesisUtterance){var u=new window.SpeechSynthesisUtterance(t);u.lang='en-US';window.speechSynthesis.cancel();window.speechSynthesis.speak(u);}}catch(e2){}
 }
 function clock12(){var d=new Date(),h=d.getHours();return ((h+11)%12+1)+':'+pad2(d.getMinutes())+' '+(h<12?'AM':'PM');}
@@ -1250,9 +1309,9 @@ function runCommand(raw){
   /* music */
   if(/^(?:play|resume)(?: the| some| my)?(?: music| song| songs)?$/.test(l)||/(සින්දු|ගීත|මියුසික්|සංගීත).*(දාන්න|දාපන්|වාදනය|ප්ලේ|අහමු)|^ප්ලේ(?: කරන්න)?$/.test(l)||/^(?:sindu|sinduwak|geetha)(?: ekak)? (?:danna|dapan|play karanna)$/.test(l)){
     if(!tracks.length){say('There is no music yet. Add songs first.');openMusic();}
-    else{if(tIdx<0||!mLoaded()||audio.paused)mToggle();say('Playing '+(tracks[tIdx]?tracks[tIdx].name:'music')+'.');}
+    else{if(tIdx<0||!mLoaded()||mPaused())mToggle();say('Playing '+(tracks[tIdx]?tracks[tIdx].name:'music')+'.');}
     return 'play';}
-  if(/^(?:pause|stop)(?: the)?(?: music| song)?$/.test(l)||/නවත්තන්න|නවතන්න|නවත්වන්න|පෝස්|ස්ටොප්/.test(l)||/^(?:sindu )?(?:nawaththanna|nawattanna|nawathanna)$/.test(l)){audio.pause();say('Music paused.');return 'pause';}
+  if(/^(?:pause|stop)(?: the)?(?: music| song)?$/.test(l)||/නවත්තන්න|නවතන්න|නවත්වන්න|පෝස්|ස්ටොප්/.test(l)||/^(?:sindu )?(?:nawaththanna|nawattanna|nawathanna)$/.test(l)){mPause();say('Music paused.');return 'pause';}
   if(/^(?:next|skip)(?: song| track| one)?$/.test(l)||/ඊළඟ|ඊලඟ|නෙක්ස්ට්|^(?:eelanga|ilanga|eelaga)/.test(l)){
     if(!tracks.length){say('There is no music yet.');return 'next';}mNext(false);say('Next song. '+(tracks[tIdx]?tracks[tIdx].name:'')+'.');return 'next';}
   if(/^(?:prev|previous|back|last)(?: song| track| one)?$/.test(l)||/කලින් (?:සින්දු|ගීත|එක)|පෙර (?:සින්දු|ගීත)|^kalin (?:sindu|eka)/.test(l)){
@@ -1293,7 +1352,7 @@ function micSwap(){var e=!trim($('cmd').value);tog($('mic'),'hide',!e);tog($('cm
 $('cmdGo').onclick=cmdGo;$('cmd').onkeydown=function(e){if(e.keyCode===13)cmdGo();};$('cmd').oninput=micSwap;
 var listening=false;
 function heard(t){$('jHeard').textContent=t?'“'+t+'”':'';}
-function duck(on){try{audio.volume=on?0.15:1;}catch(e){}}
+function duck(on){duckArm=!!on;applyVol();}
 function listenDone(text,err){
   listening=false;$('orb').classList.remove('busy');duck(false);
   if(text){heard(text);runCommand(text);}else say(err||'I did not hear anything. Tap the mic and try again.',true);
@@ -1458,7 +1517,7 @@ if(+state.set.nc&&voicePlugin())setNoise(true,false);
 if(+state.set.wake&&voicePlugin())setTimeout(function(){setHandsFree(true,false);},1200);
 
 /* hooks for the AI agent and for tests */
-window.DRIVORA={setNoise:setNoise,onHeard:onHeard,setHandsFree:setHandsFree,handsFree:function(){return hfOn;},setDest:setDest,startNav:startNav,endNav:endNav,listen:listen,mapUrl:mapUrl,music:function(){return {tracks:tracks,idx:tIdx,src:audio.getAttribute('src'),paused:audio.paused};},hsv2rgb:hsv2rgb,rgb2hs:rgb2hs,command:runCommand,navigate:navigate,live:live,state:state,obd:Obd,obdAttach:obdAttach,obdRx:obdRx,obdDrop:obdDrop,obdBytes:obdBytes,setDemo:setDemo,feed:feed,sunUT:sunUT,version:'0.5.0'};
+window.DRIVORA={setNoise:setNoise,onHeard:onHeard,setHandsFree:setHandsFree,handsFree:function(){return hfOn;},setDest:setDest,startNav:startNav,endNav:endNav,listen:listen,mapUrl:mapUrl,music:function(){return {tracks:tracks,idx:tIdx,src:playerPlugin()?NP.src:audio.getAttribute('src'),paused:mPaused(),native:!!playerPlugin(),np:NP};},hsv2rgb:hsv2rgb,rgb2hs:rgb2hs,command:runCommand,navigate:navigate,live:live,state:state,obd:Obd,obdAttach:obdAttach,obdRx:obdRx,obdDrop:obdDrop,obdBytes:obdBytes,setDemo:setDemo,feed:feed,sunUT:sunUT,version:'0.5.1'};
 })();
 </script>
 </body>

@@ -1,6 +1,6 @@
 {
   "name": "drivora",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "private": true,
   "description": "JARVIS Drive - car HUD, music and navigation dashboard for Android head units",
   "dependencies": {

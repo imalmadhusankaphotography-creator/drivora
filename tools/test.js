@@ -206,7 +206,7 @@ function wait(ms){return new Promise(function(r){setTimeout(r,ms);});}
   // hands-free wake word
   var hf=await p.evaluate(function(){return new Promise(function(done){
     var V=window.Capacitor.Plugins.Voice,L={},r={};window._spoken=[];DRIVORA.state.set.talk=1;
-    V.addListener=function(n,f){L[n]=f;};V.startHandsFree=function(o){r.lang=o.lang;return Promise.resolve();};V.stopHandsFree=function(){r.stopped=true;return Promise.resolve();};
+    window._hfL=L;V.addListener=function(n,f){L[n]=f;};V.startHandsFree=function(o){r.lang=o.lang;return Promise.resolve();};V.stopHandsFree=function(){r.stopped=true;return Promise.resolve();};
     r.before=DRIVORA.onHeard('hey jarvis play music')+'';
     DRIVORA.setHandsFree(true,true);
     setTimeout(function(){
@@ -240,6 +240,51 @@ function wait(ms){return new Promise(function(r){setTimeout(r,ms);});}
   ok(hf.micArms===true,'mic button while hands-free is on skips the wake word');
   ok(hf.off===true,'turning hands-free off stops listening and is remembered');
   await p.screenshot({path:'/tmp/t_assistant.png'});
+  // native music player (installed app): songs play outside the WebView so listening cannot pause them
+  var np=await p.evaluate(function(){return new Promise(function(done){
+    var C=[],PL={},r={},files={};window._pc=C;
+    window.Capacitor.Plugins.Player={
+      addListener:function(n,f){PL[n]=f;},
+      play:function(o){C.push('play:'+(o.uri||o.key));return Promise.resolve({dur:180000});},
+      pause:function(){C.push('pause');return Promise.resolve();},resume:function(){C.push('resume');return Promise.resolve();},
+      stop:function(){C.push('stop');return Promise.resolve();},seek:function(o){C.push('seek:'+o.ms);return Promise.resolve();},
+      volume:function(o){C.push('vol:'+o.v);return Promise.resolve();},meta:function(o){C.push('meta:'+o.title);return Promise.resolve();},
+      has:function(o){return Promise.resolve({ok:!!files[o.key]});},
+      write:function(o){files[o.key]=(o.append?(files[o.key]||''):'')+o.data;if(o.last)C.push('written:'+o.key);return Promise.resolve();},
+      drop:function(o){delete files[o.key];C.push('drop:'+o.key);return Promise.resolve();},clear:function(){C.push('clear');return Promise.resolve();}};
+    var A=document.getElementById('audio');A.pause();r.oldSrc=A.getAttribute('src');var L=window._hfL;
+    DRIVORA.setHandsFree(true,false);
+    setTimeout(function(){
+      L.heard({text:'Hey Jarvis play music'});
+      setTimeout(function(){
+        var m=DRIVORA.music();r.native=m.native;r.src=m.np.src;r.calls=C.join(',');r.elem=A.paused+'|'+(A.getAttribute('src')===r.oldSrc);
+        r.b64=(function(){for(var k in files)return atob(files[k]).length;return 0;})();
+        C.length=0;
+        L.heard({text:'Hey Jarvis play music'});r.again=C.join(',')+'|'+DRIVORA.music().paused;
+        PL.tick({pos:5000,dur:180000,playing:true});r.tick=document.getElementById('mCur').textContent+'|'+document.getElementById('mDur').textContent;
+        C.length=0;L.speech({on:true});L.speech({on:false});r.talk=C.join(',');
+        C.length=0;L.heard({text:'Hey Jarvis'});r.arm=C.join(',');L.heard({text:'pause'});r.armPause=C.join(',')+'|'+DRIVORA.music().paused;
+        C.length=0;PL.button({action:'play'});r.btn=C.join(',')+'|'+DRIVORA.music().paused;
+        C.length=0;DRIVORA.command('previous');r.prev=C.join(',');
+        C.length=0;PL.ended();r.ended=C.join(',')+'|'+DRIVORA.music().paused;
+        DRIVORA.setHandsFree(false,false);
+        C.length=0;var P2=DRIVORA.music();r.reuse=null;
+        DRIVORA.command('next');
+        setTimeout(function(){r.reuse=C.join(',');delete window.Capacitor.Plugins.Player;done(r);},200);
+      },400);
+    },100);
+  });});
+  ok(np.native===true&&/^key:s_f/.test(np.src),'installed app plays through the native player ('+np.src+')');
+  ok(/^written:s_f[^,]*,play:s_f[^,]*,(vol:1,)?meta:Ran Tharu/.test(np.calls)&&np.b64===16044,'an added song is copied once to the native player, then played ('+np.calls+', '+np.b64+' bytes)');
+  ok(np.elem==='true|true','the WebView audio element stays unused ('+np.elem+')');
+  ok(np.again==='|false','"play music" again while playing changes nothing ('+np.again+')');
+  ok(np.tick==='0:05|3:00','progress comes from the native player ('+np.tick+')');
+  ok(np.talk==='vol:0.15,vol:1','spoken replies turn the music down, then back up ('+np.talk+')');
+  ok(np.arm==='vol:0.15'&&np.armPause==='vol:0.15,vol:1,pause|true','"Hey Jarvis" ducks the native player, "pause" pauses it ('+np.arm+' / '+np.armPause+')');
+  ok(np.btn==='resume|false','steering-wheel play button resumes ('+np.btn+')');
+  ok(np.prev==='seek:0','"previous" after 4 s restarts the song ('+np.prev+')');
+  ok(np.ended==='pause|true','end of the last song stops ('+np.ended+')');
+  ok(/^play:s_f/.test(np.reuse)&&np.reuse.indexOf('written')<0,'the copied song is reused, not copied again ('+np.reuse+')');
   console.log(errs.length?'ERRORS:\n'+errs.join('\n'):'no page errors');
   console.log(fails?fails+' FAILED':'ALL PASSED');
   await b.close();process.exit(fails||errs.length?1:0);

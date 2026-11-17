@@ -23,6 +23,8 @@ Those need codes specific to each car model.
 - `www/index.html` - built copy with the font embedded; this is what ships
 - `native/ObdLinkPlugin.java` - Bluetooth / Wi-Fi serial link to the adapter
 - `native/MediaLibPlugin.java` - lists the music stored on the device
+- `native/PlayerPlugin.java` - plays the music outside the WebView, without taking audio focus, so the
+  speech recognizer cannot pause it; pauses for phone calls; steering-wheel / headset buttons
 - `native/VoicePlugin.java` - speech recognition and spoken replies for the built-in assistant
 - `native/MainActivity.java` - registers the plugins, keeps the screen on
 - `native/brand/logo-source.png` - app logo; `python3 tools/make-icons.py` turns it into `native/res/` icons and splash screens

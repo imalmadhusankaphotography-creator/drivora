@@ -11,6 +11,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(ObdLinkPlugin.class);
         registerPlugin(MediaLibPlugin.class);
         registerPlugin(VoicePlugin.class);
+        registerPlugin(PlayerPlugin.class);
         super.onCreate(savedInstanceState);
         /* a dashboard must never let the screen sleep */
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
