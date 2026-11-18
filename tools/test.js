@@ -36,7 +36,7 @@ function wait(ms){return new Promise(function(r){setTimeout(r,ms);});}
   ok(await p.evaluate(function(){return DRIVORA_TEST.length;})===0,'Google Maps is not opened until start');
   ok(await p.$eval('#bStart',function(e){return !e.classList.contains('hide');}),'Start button shown on the banner');
   ok(await p.evaluate(function(){return DRIVORA.command('start');})==='start','"start" begins guidance');
-  ok(await p.evaluate(function(){return DRIVORA_TEST[0];})==='https://www.google.com/maps/dir/?api=1&destination=Kandy&travelmode=driving&dir_action=navigate','Google Maps navigation URL built');
+  ok(await p.evaluate(function(){return DRIVORA_TEST[0];})==='https://www.google.com/maps/dir/?api=1&destination=Kandy%2C%20Sri%20Lanka&travelmode=driving&dir_action=navigate','Google Maps navigation URL built');
   await p.type('#dest','Nuwara Eliya');await p.click('#destGo');
   ok(await p.$eval('#bTitle',function(e){return e.textContent;})==='Nuwara Eliya','typed destination is locked');
   await p.click('#bStart');
@@ -54,9 +54,9 @@ function wait(ms){return new Promise(function(r){setTimeout(r,ms);});}
     r.unknown=C('blah blah blah')+'|'+T();r.trip=C('reset trip')+'|'+DRIVORA.state.trip.dist;r.hud=C('hud');return r;});
   ok(cm.lock==='nav|Galle','"lock destination to Galle" ('+cm.lock+')');
   ok(cm.polite==='nav|Ella','polite phrasing keeps the place name ('+cm.polite+')');
-  ok(cm.singlish==='nav|kandy','Singlish "kandy walata yamu" ('+cm.singlish+')');
-  ok(cm.sinhala==='nav|මහනුවර','Sinhala "mahanuwarata yamu" locks the place ('+cm.sinhala+')');
-  ok(cm.sinhala2==='nav|කොළඹ','Sinhala "kolamba walata yanna ona" ('+cm.sinhala2+')');
+  ok(cm.singlish==='nav|Kandy','Singlish "kandy walata yamu" ('+cm.singlish+')');
+  ok(cm.sinhala==='nav|Kandy','Sinhala "mahanuwarata yamu" locks the place ('+cm.sinhala+')');
+  ok(cm.sinhala2==='nav|Colombo','Sinhala "kolamba walata yanna ona" ('+cm.sinhala2+')');
   ok(cm.end==='navend'&&cm.startNone==='nodest','cancel navigation; "start" without a destination is not guidance ('+cm.startNone+')');
   ok(cm.speedSi==='speed'&&cm.speedSing==='speed'&&cm.speed==='speed','speed question in Sinhala, Singlish and English');
   ok(/^time\|It is \d{1,2}:\d\d (AM|PM)\.$/.test(cm.time),'time question ('+cm.time+')');
@@ -80,6 +80,11 @@ function wait(ms){return new Promise(function(r){setTimeout(r,ms);});}
     for(i=0;i<cases.length;i++){g=P(cases[i][0]);if(g!==cases[i][1])bad.push(cases[i][0]+' => '+g+' (want '+cases[i][1]+')');}
     var T=function(){return document.getElementById('bTitle').textContent;},r={bad:bad,n:cases.length};
     r.vol=DRIVORA.parse('volume 50').v;
+    r.places=['go to mathara','take me to Mattara','go to matra','මාතරට යමු','go to Metara','go to candy','go to Lakshapana'].map(function(s){DRIVORA.command(s);return T();}).join('|');
+    r.altPlace=DRIVORA.alternatives(['go to mantra','go to Matara','go to mother'])+'|'+T();
+    window.DRIVORA_TEST.length=0;DRIVORA.command('start');r.url=window.DRIVORA_TEST[0]||'';
+    DRIVORA.command('go to Keells Nugegoda');DRIVORA.command('start');r.shop=T()+'|'+decodeURIComponent((window.DRIVORA_TEST[1]||'').split('destination=')[1].split('&')[0]);
+    var keep=DRIVORA.state.recent.slice();DRIVORA.state.recent.length=0;DRIVORA.command('go to mother');r.mother=T();DRIVORA.state.recent=keep;
     r.combo=DRIVORA.command('open google maps and go to Matara')+'|'+T();
     r.alt=DRIVORA.alternatives(['go tomato','go to Galle','go to gal'])+'|'+T()+'|'+document.getElementById('jHeard').textContent;
     r.unk=DRIVORA.command('blah blah')+'|'+document.getElementById('jMsg').textContent;
@@ -87,6 +92,11 @@ function wait(ms){return new Promise(function(r){setTimeout(r,ms);});}
     DRIVORA.endNav();DRIVORA.state.set.mvol=1;return r;});
   ok(pz.bad.length===0,'the same command said '+pz.n+' different ways is understood'+(pz.bad.length?': '+pz.bad.join('; '):''));
   ok(pz.vol===0.5,'"volume 50" sets half volume');
+  ok(pz.places==='Matara|Matara|Matara|Matara|Matara|Kandy|Laxapana','local names heard many ways reach the right town ('+pz.places+')');
+  ok(pz.altPlace==='nav|Matara','a guess that names a known town beats a first guess that does not ('+pz.altPlace+')');
+  ok(pz.url.indexOf('destination=Matara%2C%20Sri%20Lanka')>0,'Google Maps gets "Matara, Sri Lanka" ('+pz.url+')');
+  ok(pz.shop==='Keells Nugegoda|Keells Nugegoda, Sri Lanka','a shop in a known town keeps its name and gets the country ('+pz.shop+')');
+  ok(pz.mother==='mother','a word that only loosely sounds like a town is not changed into one ('+pz.mother+')');
   ok(pz.combo==='nav|Matara','"open google maps and go to Matara" does both ('+pz.combo+')');
   ok(pz.alt==='nav|Galle|“go to Galle”','the recognizer\'s second guess is used when the first makes no sense ('+pz.alt+')');
   ok(/^unknown\|Sorry, I heard “blah blah”/.test(pz.unk),'not understood: says what it heard ('+pz.unk+')');
@@ -155,7 +165,7 @@ function wait(ms){return new Promise(function(r){setTimeout(r,ms);});}
   var mu=await p.evaluate(function(){var D=DRIVORA;D.command('end navigation');D.live.lat=null;D.state.pos=null;var a=D.mapUrl();D.state.pos={lat:6.9271,lon:79.8612};var b=D.mapUrl();D.navigate('Kandy');var c=D.mapUrl();D.live.lat=7.2906;D.live.lon=80.6337;var d=D.mapUrl();D.live.lat=null;return [a,b,c,d];});
   ok(mu[0]==='','map: no address before a position is known');
   ok(mu[1]==='https://maps.google.com/maps?q=6.92710,79.86120&z=16&output=embed','map: centres on last known position');
-  ok(mu[2]==='https://maps.google.com/maps?saddr=6.92710,79.86120&daddr=Kandy&output=embed','map: route to destination');
+  ok(mu[2]==='https://maps.google.com/maps?saddr=6.92710,79.86120&daddr=Kandy%2C%20Sri%20Lanka&output=embed','map: route to destination');
   ok(mu[3].indexOf('saddr=7.29060,80.63370')>0,'map: live GPS position wins over the saved one');
   ok(await p.$eval('#gmap',function(e){return !e.classList.contains('hide');}),'map panel visible when online with a position');
   await p.click('#mapSw');ok(await p.$eval('#gmap',function(e){return e.classList.contains('hide');}),'switch to trail hides the map');await p.click('#mapSw');
@@ -193,7 +203,7 @@ function wait(ms){return new Promise(function(r){setTimeout(r,ms);});}
   ok(/^You are doing 5\d kilometres per hour\.$/.test(v1.last),'voice "what is my speed" is answered aloud: '+v1.last);
   ok(v1.heard.indexOf('what is my speed')>=0,'what was heard is shown');
   await p.click('#orb');await wait(300);
-  ok(await p.$eval('#bTitle',function(e){return e.textContent;})==='මහනුවර'&&(await p.evaluate(function(){return DRIVORA_TEST.length;}))===n0,'voice in Sinhala locks the destination without leaving the app');
+  ok(await p.$eval('#bTitle',function(e){return e.textContent;})==='Kandy'&&(await p.evaluate(function(){return DRIVORA_TEST.length;}))===n0,'voice in Sinhala locks the destination without leaving the app');
   await p.click('#mic');await wait(300);
   ok((await p.evaluate(function(){return DRIVORA_TEST.length;}))===n0+1,'voice "start" begins guidance');
   await p.click('#mic');await wait(600);

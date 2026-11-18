@@ -32,6 +32,7 @@ import com.getcapacitor.annotation.Permission;
 import com.getcapacitor.annotation.PermissionCallback;
 import java.io.OutputStream;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -73,6 +74,7 @@ public class VoicePlugin extends Plugin implements WakeEngine.Listener {
 
     private SpeechRecognizer recognizer;
     private PluginCall pending;
+    private ArrayList<String> lastAll;
     private TextToSpeech tts;
     private boolean ttsReady = false;
     private String queuedText;
@@ -82,6 +84,7 @@ public class VoicePlugin extends Plugin implements WakeEngine.Listener {
     private WakeEngine engine;
     private boolean hfOn = false;
     private String hfLang = "en-US";
+    private ArrayList<String> hints = new ArrayList<String>();
     private PluginCall hfCall;
     private boolean capturing = false;
     private ParcelFileDescriptor feedRead;
@@ -146,6 +149,7 @@ public class VoicePlugin extends Plugin implements WakeEngine.Listener {
 
     private void doListen(final PluginCall call) {
         final String lang = call.getString("lang", "en-US");
+        readHints(call);
         getActivity()
             .runOnUiThread(
                 new Runnable() {
@@ -194,7 +198,10 @@ public class VoicePlugin extends Plugin implements WakeEngine.Listener {
                                     public void onResults(Bundle results) {
                                         String text = first(results);
                                         if (text.length() == 0) finish(null, "I did not hear anything. Tap the mic and try again.");
-                                        else finish(text, null);
+                                        else {
+                                            lastAll = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
+                                            finish(text, null);
+                                        }
                                     }
                                 }
                             );
@@ -236,6 +243,10 @@ public class VoicePlugin extends Plugin implements WakeEngine.Listener {
         } else {
             JSObject o = new JSObject();
             o.put("text", text);
+            JSArray a = new JSArray();
+            if (lastAll != null) for (String t : lastAll) if (t != null && t.trim().length() > 0) a.put(t.trim());
+            o.put("texts", a);
+            lastAll = null;
             c.resolve(o);
         }
     }
@@ -264,6 +275,7 @@ public class VoicePlugin extends Plugin implements WakeEngine.Listener {
 
     private void doStartHandsFree(final PluginCall call) {
         final String lang = call.getString("lang", "en-US");
+        readHints(call);
         final Double thr = call.getDouble("threshold", 0.5);
         final Boolean nc = call.getBoolean("nc", false);
         getActivity()
@@ -334,6 +346,7 @@ public class VoicePlugin extends Plugin implements WakeEngine.Listener {
     public void setWake(final PluginCall call) {
         final Double thr = call.getDouble("threshold", null);
         final String lang = call.getString("lang", null);
+        readHints(call);
         getActivity()
             .runOnUiThread(
                 new Runnable() {
@@ -771,12 +784,25 @@ public class VoicePlugin extends Plugin implements WakeEngine.Listener {
         } catch (Exception ignored) {}
     }
 
+    /* place names and phrases the recognizer should expect */
+    private void readHints(PluginCall call) {
+        try {
+            JSArray a = call.getArray("bias");
+            if (a == null) return;
+            List<String> l = a.toList();
+            ArrayList<String> h = new ArrayList<String>();
+            for (Object o : l) if (o != null && h.size() < 150) h.add(String.valueOf(o));
+            hints = h;
+        } catch (Exception ignored) {}
+    }
+
     private Intent intent(String lang, int max) {
         Intent i = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
         i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
         i.putExtra(RecognizerIntent.EXTRA_LANGUAGE, lang == null ? "en-US" : lang);
         i.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, max);
         i.putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, getContext().getPackageName());
+        if (Build.VERSION.SDK_INT >= 33 && !hints.isEmpty()) i.putStringArrayListExtra("android.speech.extra.BIASING_STRINGS", hints);
         return i;
     }
 

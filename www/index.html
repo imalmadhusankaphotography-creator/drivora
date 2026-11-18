@@ -376,7 +376,7 @@ body.ptab .right{grid-column:2;grid-row:2;max-width:none}
     <div class="fld"><span class="lbl">How easily "Hey Jarvis" wakes</span><div class="seg" id="sSens"><button data-v="l">Less</button><button data-v="n">Normal</button><button data-v="h">More</button></div></div>
     <div class="fld"><span class="lbl">Noise cancellation for voice</span><div class="seg" id="sNc"><button data-v="1">On</button><button data-v="0">Off</button></div></div>
     <div class="fld"><span class="lbl">Voice log: what Jarvis heard and did</span><div class="vlog" id="vLog">Nothing yet.</div></div>
-    <div class="fld"><span class="lbl">Voice command language</span><div class="seg" id="sVlang"><button data-v="en-US">English</button><button data-v="si-LK">සිංහල</button></div></div>
+    <div class="fld"><span class="lbl">Voice command language</span><div class="seg" id="sVlang"><button data-v="en-US">English</button><button data-v="en-IN">English (India)</button><button data-v="si-LK">සිංහල</button></div></div>
     <div class="fld"><span class="lbl">Spoken replies</span><div class="seg" id="sTalk"><button data-v="1">On</button><button data-v="0">Off</button></div></div>
     <div class="fld"><span class="lbl">Screen brightness</span><div class="seg" id="sTheme"><button data-v="auto">Dim after sunset</button><button data-v="day">Always bright</button><button data-v="night">Always dim</button></div></div>
     <div class="two"><div class="fld"><label for="sPrice">Fuel price per litre</label><input class="inp" id="sPrice" inputmode="decimal" placeholder="0"></div><div class="fld"><label for="sCur">Currency</label><input class="inp" id="sCur" placeholder="Rs"></div></div>
@@ -1204,11 +1204,11 @@ audio.ontimeupdate=mProgress;
 $('mBar').onclick=function(e){var r=this.getBoundingClientRect(),d=mDur();if(d)mSeek(Math.max(0,Math.min(1,(e.clientX-r.left)/r.width))*d);};
 
 /* ---------- navigation + Google map ---------- */
-var navDest='',mapUrlNow='',mapDest=null,mapAt=0,mapPos=null;
+var navDest='',navQ='',mapUrlNow='',mapDest=null,mapAt=0,mapPos=null;
 function mapUrl(){
   var p=live.lat!==null?live:state.pos,ll=p?(p.lat.toFixed(5)+','+p.lon.toFixed(5)):'',b='https://maps.google.com/maps?';
-  if(navDest&&ll)return b+'saddr='+ll+'&daddr='+encodeURIComponent(navDest)+'&output=embed';
-  if(navDest)return b+'q='+encodeURIComponent(navDest)+'&z=13&output=embed';
+  if(navDest&&ll)return b+'saddr='+ll+'&daddr='+encodeURIComponent(navQ||navDest)+'&output=embed';
+  if(navDest)return b+'q='+encodeURIComponent(navQ||navDest)+'&z=13&output=embed';
   if(ll)return b+'q='+ll+'&z=16&output=embed';
   return '';
 }
@@ -1227,24 +1227,26 @@ $('mapSw').onclick=function(){state.set.map=state.set.map==='trail'?'map':'trail
   if(state.set.map==='map'&&!mapUrlNow)toast(navigator.onLine===false?'The map needs an internet connection':'The map appears once GPS finds your position');};
 window.addEventListener('online',function(){mapTick(true);});window.addEventListener('offline',function(){mapTick(true);});
 
-function setDest(q){
+function setDest(q,exact){
   q=trim(q);if(!q)return;
+  var g=exact?null:lkFind(q),query=q;
+  if(g){q=g.name;query=g.name+', Sri Lanka';}else if(!exact&&lkInside(q)&&!/sri lanka/i.test(q))query=q+', Sri Lanka';
   var i;for(i=state.recent.length-1;i>=0;i--)if(state.recent[i].toLowerCase()===q.toLowerCase())state.recent.splice(i,1);
   state.recent.unshift(q);if(state.recent.length>6)state.recent.length=6;save();
-  navDest=q;$('banner').className='banner go';$('bTitle').textContent=q;$('bSub').textContent='Route is on the map';
+  navDest=q;navQ=query;$('banner').className='banner go';$('bTitle').textContent=q;$('bSub').textContent='Route is on the map';
   $('bStart').classList.remove('hide');$('bEnd').classList.remove('hide');
   mapTick(true);say('Destination set to '+q+'. '+(hfOn?'Say Hey Jarvis, start.':'Say start, or tap Start.'));
 }
 function startNav(){
   if(!navDest){say('Set a destination first.');return;}
-  var u='https://www.google.com/maps/dir/?api=1&destination='+encodeURIComponent(navDest)+'&travelmode=driving&dir_action=navigate';
+  var u='https://www.google.com/maps/dir/?api=1&destination='+encodeURIComponent(navQ||navDest)+'&travelmode=driving&dir_action=navigate';
   $('bSub').textContent='Guidance is running in Google Maps';say('Starting guidance to '+navDest+'.');
   if(window.DRIVORA_TEST){window.DRIVORA_TEST.push(u);return;}
   if(window.Capacitor&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform())window.location.href=u;else window.open(u,'_blank');
 }
 function endNav(){
   if(!navDest){say('There is no destination set.');return;}
-  navDest='';$('banner').className='banner';$('bTitle').textContent='No destination';$('bSub').textContent='Type a place below, or ask the assistant';
+  navDest='';navQ='';$('banner').className='banner';$('bTitle').textContent='No destination';$('bSub').textContent='Type a place below, or ask the assistant';
   $('bStart').classList.add('hide');$('bEnd').classList.add('hide');mapTick(true);say('Destination cleared.');
 }
 function navigate(q){setDest(q);startNav();}
@@ -1260,9 +1262,9 @@ function renderPlaces(){
   $('rList').innerHTML=h;
   $('chips').innerHTML=c+'<button class="chip" data-p="all">'+(state.places.length?'All places':'Save a place')+'</button>';
 }
-$('chips').onclick=function(e){var p=e.target.getAttribute('data-p');if(p==='all'){renderPlaces();openSheet('shPlaces');}else if(p!==null&&state.places[+p])setDest(state.places[+p].q);};
+$('chips').onclick=function(e){var p=e.target.getAttribute('data-p');if(p==='all'){renderPlaces();openSheet('shPlaces');}else if(p!==null&&state.places[+p])setDest(state.places[+p].q,true);};
 $('pAdd').onclick=function(){var n=trim($('pName').value),q=trim($('pQ').value);if(!n||!q){toast('Enter both a name and a place');return;}state.places.push({n:n,q:q});save();$('pName').value='';$('pQ').value='';renderPlaces();toast('Saved '+n);};
-$('pList').onclick=function(e){var g=e.target.getAttribute('data-go'),d=e.target.getAttribute('data-del');if(g!==null){closeSheets();setDest(state.places[+g].q);}else if(d!==null){state.places.splice(+d,1);save();renderPlaces();}};
+$('pList').onclick=function(e){var g=e.target.getAttribute('data-go'),d=e.target.getAttribute('data-del');if(g!==null){closeSheets();setDest(state.places[+g].q,true);}else if(d!==null){state.places.splice(+d,1);save();renderPlaces();}};
 $('rList').onclick=function(e){var r=e.target.getAttribute('data-r');if(r!==null){closeSheets();setDest(state.recent[+r]);}};
 function destGo(){var v=trim($('dest').value);if(!v){toast('Type a place first');return;}$('dest').value='';$('dest').blur();setDest(v);}
 $('destGo').onclick=destGo;$('dest').onkeydown=function(e){if(e.keyCode===13)destGo();};
@@ -1283,6 +1285,85 @@ function speak(t){
 function clock12(){var d=new Date(),h=d.getHours();return ((h+11)%12+1)+':'+pad2(d.getMinutes())+' '+(h<12?'AM':'PM');}
 function unitWord(){return mph()?'miles per hour':'kilometres per hour';}
 function findPlace(n){var i,k=trim(n).toLowerCase();for(i=0;i<state.places.length;i++)if(state.places[i].n.toLowerCase()===k)return state.places[i].q;return null;}
+/* ---------- Sri Lankan places ----------
+   The speech recognizer is English (or Sinhala), so local names come back spelled many ways
+   ("Mathara", "Mattara", "matra") or as English words. Each spoken place is matched by sound against
+   this list; a match is sent to Google as "<name>, Sri Lanka" so the right town is found.
+   Format: name|other names and spellings; a leading * marks district capitals and big towns. */
+var LK_PLACES='*Colombo|කොළඹ|kolamba|kolomba;*Kandy|මහනුවර|නුවර|mahanuwara|candy;*Galle|ගාල්ල|galla|gaul;*Matara|මාතර|mathara|mattara;'+
+'*Hambantota|හම්බන්තොට|hambanthota;*Jaffna|යාපනය|yapanaya|jafna;*Trincomalee|ත්‍රිකුණාමලය|trinco|trincomali|thrikunamalaya;*Batticaloa|මඩකලපුව|madakalapuwa|batti;'+
+'*Anuradhapura|අනුරාධපුරය|anuradapura;*Polonnaruwa|පොළොන්නරුව|polonnaruva;*Kurunegala|කුරුණෑගල|kurunagala;*Puttalam|පුත්තලම|puttalama;*Chilaw|හලාවත|halawatha;'+
+'*Gampaha|ගම්පහ;*Negombo|මීගමුව|meegamuwa|migamuwa;*Kalutara|කළුතර|kaluthara;*Ratnapura|රත්නපුර|rathnapura;*Kegalle|කෑගල්ල|kegalla;*Badulla|බදුල්ල;'+
+'*Monaragala|මොණරාගල|moneragala;*Nuwara Eliya|නුවරඑළිය|nuwaraeliya|nuwara eliya;*Matale|මාතලේ|mathale;*Dambulla|දඹුල්ල;*Ampara|අම්පාර;*Vavuniya|වවුනියාව|wavuniya;'+
+'*Mannar|මන්නාරම|mannarama;*Kilinochchi|කිලිනොච්චිය;*Mullaitivu|මුලතිව්|mulathiv;*Kataragama|කතරගම;*Ella|ඇල්ල;*Bandarawela|බණ්ඩාරවෙල;*Hatton|හැටන්;'+
+'*Panadura|පානදුර;*Horana|හොරණ;*Avissawella|අවිස්සාවේල්ල;*Moratuwa|මොරටුව;*Dehiwala|දෙහිවල;*Maharagama|මහරගම;*Nugegoda|නුගේගොඩ;*Kottawa|කොට්ටාව;'+
+'*Homagama|හෝමාගම;*Kaduwela|කඩුවෙල;*Malabe|මාලබේ;*Kiribathgoda|කිරිබත්ගොඩ;*Kadawatha|කඩවත;*Ja-Ela|ජාඇල|jaela;*Wattala|වත්තල;*Kelaniya|කැලණිය;'+
+'*Hikkaduwa|හික්කඩුව;*Ambalangoda|අම්බලන්ගොඩ;*Bentota|බෙන්තොට;*Beruwala|බේරුවල;*Aluthgama|අළුත්ගම;*Weligama|වැලිගම;*Mirissa|මිරිස්ස;*Tangalle|තංගල්ල;'+
+'*Embilipitiya|ඇඹිලිපිටිය;*Balangoda|බලංගොඩ;*Haputale|හපුතලේ;*Welimada|වැලිමඩ;*Mahiyanganaya|මහියංගනය;*Wellawaya|වැල්ලවාය;*Buttala|බුත්තල;*Gampola|ගම්පොළ;'+
+'*Nawalapitiya|නාවලපිටිය;*Peradeniya|පේරාදෙණිය;*Kadugannawa|කඩුගන්නාව;*Mawanella|මාවනැල්ල;*Kuliyapitiya|කුලියාපිටිය;*Wennappuwa|වෙන්නප්පුව;*Kekirawa|කැකිරාව;'+
+'*Habarana|හබරණ;*Sigiriya|සීගිරිය;*Mihintale|මිහින්තලේ;*Tissamaharama|තිස්සමහාරාමය|tissa;*Akuressa|අකුරැස්ස;*Deniyaya|දෙනියාය;*Maskeliya|මස්කෙළිය;'+
+'*Talawakele|තලවාකැලේ;*Kitulgala|කිතුල්ගල;Laxapana|ලක්ෂපාන|lakshapana;Pinnawala|පින්නවල;*Minuwangoda|මිනුවන්ගොඩ;*Katunayake|කටුනායක;*Piliyandala|පිළියන්දල;'+
+'*Battaramulla|බත්තරමුල්ල;*Rajagiriya|රාජගිරිය;Kotte|කෝට්ටේ;Mount Lavinia|ගල්කිස්ස|galkissa;Wadduwa|වාද්දුව;Matugama|මතුගම;*Kalmunai|කල්මුණේ;Arugam Bay|ආරුගම්බේ|arugambay;'+
+'Pottuvil|පොතුවිල්;Point Pedro|පේදුරුතුඩුව;Kantale|කන්තලේ;Kotahena;Borella;Wellawatte;Bambalapitiya;Kollupitiya;Pettah;Fort;Maradana;Grandpass;Mattakkuliya;Kolonnawa;'+
+'Wellampitiya;Peliyagoda;Ragama;Kandana;Seeduwa;Divulapitiya;Nittambuwa;Veyangoda;Mirigama;Yakkala;Kesbewa;Boralesgamuwa;Padukka;Hanwella;Ingiriya;Bandaragama;'+
+'Bulathsinhala;Unawatuna;Koggala;Ahangama;Elpitiya;Baddegama;Udugama;Neluwa;Karandeniya;Dikwella;Beliatta;Ambalantota;Kirinda;Suriyawewa;Weerawila;'+
+'Kamburupitiya;Hakmana;Devinuwara|dondra;Katugastota;Digana;Kundasale;Akurana;Galewela;Naula;Rattota;Ukuwela;Nanu Oya;Ragala;Bogawantalawa;'+
+'Ginigathena;Kotagala;Walapane;Pussellawa;Ramboda;Passara;Hali Ela;Diyatalawa;Lunugala;Bibile;Siyambalanduwa;Pelmadulla;Eheliyagoda;Kuruwita;Kahawatta;'+
+'Rakwana;Godakawela;Warakapola;Rambukkana;Ruwanwella;Yatiyantota;Dehiowita;Deraniyagala;Pannala;Narammala;Wariyapola;Polgahawela;Mawathagama;Ibbagamuwa;'+
+'Melsiripura;Galgamuwa;Nikaweratiya;Maho;Alawwa;Hettipola;Marawila;Nattandiya;Anamaduwa;Kalpitiya;Dankotuwa;Madampe;Mundalama;Norochcholai;Eppawala;'+
+'Tambuttegama;Medawachchiya;Kebithigollewa;Nochchiyagama;Hingurakgoda;Minneriya;Medirigiriya;Kaduruwela;Giritale;Dimbulagala;Aralaganwila;Manampitiya;'+
+'Chavakachcheri;Nallur;Kankesanthurai|kks;Pallai;Elephant Pass;Kayts;Delft;Puthukudiyiruppu;Madhu;Kinniya;Nilaveli;Muttur;Kattankudy;Eravur;Valaichchenai;'+
+'Kalkudah;Passikudah;Akkaraipattu;Sammanthurai;Dehiattakandiya;Uhana;Maha Oya;Padiyathalawa;Nintavur;Sainthamaruthu;Thirukkovil;Norton Bridge;Nallathanniya;'+
+'Adams Peak|sri pada|sripada;Horton Plains;Yala;Udawalawe;Wilpattu;Sinharaja;Mattala;Bandaranaike Airport|colombo airport|airport';
+var lkList=null;
+function lkKey(s){
+  return String(s).toLowerCase().replace(/[^a-z]/g,'').replace(/th/g,'t').replace(/dh/g,'d').replace(/bh/g,'b').replace(/kh/g,'k').replace(/gh/g,'g')
+    .replace(/ph/g,'p').replace(/sh/g,'s').replace(/ch/g,'c').replace(/w/g,'v').replace(/[cq]/g,'k').replace(/z/g,'s').replace(/y/g,'i').replace(/h/g,'').replace(/(.)\1+/g,'$1');
+}
+function lkSkel(k){return k.charAt(0)+k.substr(1).replace(/[aeiou]/g,'');}
+function lev(a,b){
+  var m=a.length,n=b.length,i,j,p,c,d=[];if(!m)return n;if(!n)return m;
+  for(j=0;j<=n;j++)d[j]=j;
+  for(i=1;i<=m;i++){p=d[0];d[0]=i;for(j=1;j<=n;j++){c=d[j];d[j]=Math.min(d[j]+1,d[j-1]+1,p+(a.charAt(i-1)===b.charAt(j-1)?0:1));p=c;}}
+  return d[n];
+}
+function lkLoad(){
+  if(lkList)return lkList;lkList=[];
+  var e=LK_PLACES.split(';'),i,j,f,o;
+  for(i=0;i<e.length;i++){f=e[i].split('|');o={name:f[0].replace(/^\*/,''),big:f[0].charAt(0)==='*',si:[],keys:[]};
+    for(j=0;j<f.length;j++){var v=f[j].replace(/^\*/,'');if(/[඀-෿]/.test(v))o.si.push(v);else{var k=lkKey(v);o.keys.push({k:k,s:lkSkel(k)});}}
+    lkList.push(o);}
+  return lkList;
+}
+/* best matching Sri Lankan place for what was heard: { name, score } (1 = exact) or null */
+function lkFind(text){
+  var t=trim(String(text||'')).replace(/^(?:the)\s+/i,'').replace(/\s+(?:town|city|junction|bus stand|railway station)$/i,''),L=lkLoad(),i,j,best=null,second=0,sc;
+  if(!t)return null;
+  if(/[඀-෿]/.test(t)){
+    var ts=t.replace(/\s+/g,'');
+    for(i=0;i<L.length;i++)for(j=0;j<L[i].si.length;j++)if(L[i].si[j].replace(/\s+/g,'')===ts)return {name:L[i].name,score:1};
+    return null;
+  }
+  var k=lkKey(t),s=lkSkel(k),rec=(state.recent||[]).join('|').toLowerCase();
+  if(k.length<3)return null;
+  for(i=0;i<L.length;i++)for(j=0;j<L[i].keys.length;j++){
+    var c=L[i].keys[j];
+    if(c.k===k)return {name:L[i].name,score:1};
+    if(k.length<4||c.k.length<4)continue; /* short words: exact only, so "hell" never becomes Ella */
+    sc=0.55*(1-lev(s,c.s)/Math.max(s.length,c.s.length))+0.45*(1-lev(k,c.k)/Math.max(k.length,c.k.length));
+    if(L[i].big)sc+=0.03;
+    if(rec.indexOf(L[i].name.toLowerCase())>=0)sc+=0.04;
+    if(!best||sc>best.score){if(best&&best.name!==L[i].name)second=Math.max(second,best.score);best={name:L[i].name,score:sc};}
+    else if(L[i].name!==best.name&&sc>second)second=sc;
+  }
+  return best&&best.score>=0.8&&best.score-second>=0.02?best:null;
+}
+/* names given to the speech recognizer as hints (Android 13+) */
+function lkHints(){
+  var L=lkLoad(),o=[],i;for(i=0;i<L.length;i++)if(L[i].big)o.push(L[i].name);
+  return o.concat(['Hey Jarvis','go to','take me to','navigate to','open the map','play music','next song','what is my speed']);
+}
+function lkInside(q){var L=lkLoad(),l=' '+String(q).toLowerCase().replace(/[^a-z\u0D80-\u0DFF]+/g,' ')+' ',i;for(i=0;i<L.length;i++)if(l.indexOf(' '+L[i].name.toLowerCase()+' ')>=0)return true;return /sri lanka/.test(l);}
 /* ---------- commands: first work out what was meant, then do it ----------
    Spoken commands come in many shapes ("open google map", "jarvis can you take me to Matara please",
    "play some music and then go to Kandy"). Fillers are dropped, the meaning is found by key words anywhere
@@ -1401,9 +1482,10 @@ function execCmd(p,raw){
     case 'navend':endNav();return 'navend';
     case 'start':if(!navDest){say('There is no destination yet. Say go to, and the place.');return 'nodest';}startNav();return 'start';
     case 'nav':
-      q=p.saved||p.si?p.q:(findPlace(p.q)||placeText(p.q,raw));
+      var sv=p.saved?p.q:findPlace(p.q);
+      q=sv||(p.si?p.q:placeText(p.q,raw));
       if(!q){say('Which place? Say go to, and the place.');return 'unknown';}
-      setDest(q);if(p.go)startNav();return 'nav';
+      setDest(q,!!sv);if(p.go)startNav();return 'nav';
     case 'trail':state.set.map='trail';save();mapTick(true);trailDirty=true;drawTrail();say('Showing the trail you have driven.');return 'trail';
     case 'map':
       if(p.app&&navDest){startNav();return 'start';}
@@ -1465,10 +1547,18 @@ function runCommand(raw){
 }
 /* the recognizer's guesses, best first: act on the first one that makes sense */
 function runAlternatives(list){
-  var i,t;
+  var i,t,p,g,first=-1,best=-1,bs=-1,pf;
   for(i=0;i<list.length;i++){t=trim(list[i]);if(!t)continue;
-    if(splitCmd(t)||parseCmd(t).k!=='unknown'){heard(t);return runCommand(t);}}
-  t=trim(list[0]||'');heard(t);return runCommand(t);
+    if(splitCmd(t)){if(first<0)first=i;continue;}
+    p=parseCmd(t);if(p.k==='unknown'||p.k==='')continue;
+    if(first<0)first=i;
+    if(p.k==='nav'){g=p.saved?{score:1.5}:lkFind(p.q);if(g&&g.score>bs){bs=g.score;best=i;}}
+  }
+  if(first<0){t=trim(list[0]||'');heard(t);return runCommand(t);}
+  /* the first guess that makes sense wins, unless it is a destination and another guess names a known place better */
+  pf=splitCmd(trim(list[first]))?null:parseCmd(trim(list[first]));
+  if(pf&&pf.k==='nav'&&best>=0&&best!==first){g=pf.saved?{score:1.5}:lkFind(pf.q);if(!g||bs>g.score+0.05)first=best;}
+  t=trim(list[first]);heard(t);return runCommand(t);
 }
 function cmdGo(){var v=$('cmd').value;$('cmd').value='';$('cmd').blur();micSwap();if(trim(v)){heard(trim(v));runCommand(v);}}
 function micSwap(){var e=!trim($('cmd').value);tog($('mic'),'hide',!e);tog($('cmdGo'),'hide',e);}
@@ -1476,17 +1566,17 @@ $('cmdGo').onclick=cmdGo;$('cmd').onkeydown=function(e){if(e.keyCode===13)cmdGo(
 var listening=false;
 function heard(t){$('jHeard').textContent=t?'“'+t+'”':'';}
 function duck(on){duckArm=!!on;applyVol();}
-function listenDone(text,err){
+function listenDone(text,err,all){
   listening=false;$('orb').classList.remove('busy');duck(false);
-  if(text){heard(text);runCommand(text);}else say(err||'I did not hear anything. Tap the mic and try again.',true);
+  if(all&&all.length>1)runAlternatives(all);else if(text){heard(text);runCommand(text);}else say(err||'I did not hear anything. Tap the mic and try again.',true);
 }
 function listen(){
   var p=voicePlugin(),SR=window.SpeechRecognition||window.webkitSpeechRecognition,lang=state.set.vlang||'en-US';
-  if(hfOn&&p&&p.startHandsFree){nIgnore(p.listen({lang:lang}));return;} /* listening all the time already: the button works like saying Hey Jarvis */
+  if(hfOn&&p&&p.startHandsFree){nIgnore(p.listen({lang:lang,bias:lkHints()}));return;} /* listening all the time already: the button works like saying Hey Jarvis */
   if(listening){if(p&&p.stop)try{p.stop()['catch'](function(){});}catch(e){}return;}
   if(!p&&!SR){say('Voice works in the installed app. Type your command here instead.',true);return;}
   listening=true;heard('');$('orb').classList.add('busy');say('Listening',true);duck(true);
-  if(p){p.listen({lang:lang}).then(function(r){listenDone(trim(r&&r.text));})['catch'](function(e){listenDone('',e&&e.message);});return;}
+  if(p){p.listen({lang:lang,bias:lkHints()}).then(function(r){listenDone(trim(r&&r.text),'',r&&r.texts);})['catch'](function(e){listenDone('',e&&e.message);});return;}
   var r,got=false;
   try{r=new SR();}catch(e2){listenDone('','Voice is not available here. Type your command instead.');return;}
   r.lang=lang;r.interimResults=false;
@@ -1521,7 +1611,7 @@ function setHandsFree(on,tell){
     p.addListener('voiceLog',function(e){if(e&&e.msg)vLog(e.msg);});
     p.addListener('micProblem',function(e){var m=(e&&e.message)||'The microphone is not working.';toast(m);say(m);});
     p.addListener('handsFree',function(e){if(e&&e.on===false)hfOff(e.error||'Hands-free is off. Tap the mic to speak.');});}
-  p.startHandsFree({lang:state.set.vlang||'en-US',threshold:wakeThr(),nc:!!+state.set.nc}).then(function(r){
+  p.startHandsFree({lang:state.set.vlang||'en-US',threshold:wakeThr(),nc:!!+state.set.nc,bias:lkHints()}).then(function(r){
     hfOn=true;state.set.wake=1;save();if($('sWake'))segSet($('sWake'),1);
     if(tell)say(r&&r.background===false?'Hands-free is on while this app is open. Say Hey Jarvis, then your command.':'Hands-free is on. Say Hey Jarvis, then your command.');
     else say(idleMsg(),true);
@@ -1610,7 +1700,7 @@ $('sBeep').onpick=function(v){state.set.beep=+v;save();if(+v){lastBeep=0;beep();
 $('sWake').onpick=function(v){setHandsFree(!!+v,true);};
 $('sNc').onpick=function(v){setNoise(!!+v,true);};
 $('sSens').onpick=function(v){state.set.sens=v;save();var p=voicePlugin();if(hfOn&&p&&p.setWake)nIgnore(p.setWake({threshold:wakeThr()}));toast(v==='h'?'Wakes more easily. It may also wake by mistake in a noisy car.':(v==='l'?'Wakes only when you say it clearly.':'Normal wake word sensitivity'));};
-$('sVlang').onpick=function(v){state.set.vlang=v;save();var p=voicePlugin();if(hfOn&&p&&p.setWake)nIgnore(p.setWake({lang:v}));};
+$('sVlang').onpick=function(v){state.set.vlang=v;save();var p=voicePlugin();if(hfOn&&p&&p.setWake)nIgnore(p.setWake({lang:v,bias:lkHints()}));};
 $('sTalk').onpick=function(v){state.set.talk=+v;save();if(+v)speak('Spoken replies are on.');};
 $('sTheme').onpick=function(v){state.set.theme=v;save();calcNight();};
 $('sPrice').onchange=function(){state.set.price=Math.max(0,num(this.value,0));save();renderTripKv();};
@@ -1634,7 +1724,7 @@ if(+state.set.nc&&voicePlugin())setNoise(true,false);
 if(+state.set.wake&&voicePlugin())setTimeout(function(){setHandsFree(true,false);},1200);
 
 /* hooks for the AI agent and for tests */
-window.DRIVORA={setNoise:setNoise,parse:parseCmd,norm:cmdNorm,alternatives:runAlternatives,setHandsFree:setHandsFree,handsFree:function(){return hfOn;},setDest:setDest,startNav:startNav,endNav:endNav,listen:listen,mapUrl:mapUrl,music:function(){return {tracks:tracks,idx:tIdx,src:playerPlugin()?NP.src:audio.getAttribute('src'),paused:mPaused(),native:!!playerPlugin(),np:NP};},hsv2rgb:hsv2rgb,rgb2hs:rgb2hs,command:runCommand,navigate:navigate,live:live,state:state,obd:Obd,obdAttach:obdAttach,obdRx:obdRx,obdDrop:obdDrop,obdBytes:obdBytes,setDemo:setDemo,feed:feed,sunUT:sunUT,version:'0.6.1'};
+window.DRIVORA={setNoise:setNoise,lkFind:lkFind,parse:parseCmd,norm:cmdNorm,alternatives:runAlternatives,setHandsFree:setHandsFree,handsFree:function(){return hfOn;},setDest:setDest,startNav:startNav,endNav:endNav,listen:listen,mapUrl:mapUrl,music:function(){return {tracks:tracks,idx:tIdx,src:playerPlugin()?NP.src:audio.getAttribute('src'),paused:mPaused(),native:!!playerPlugin(),np:NP};},hsv2rgb:hsv2rgb,rgb2hs:rgb2hs,command:runCommand,navigate:navigate,live:live,state:state,obd:Obd,obdAttach:obdAttach,obdRx:obdRx,obdDrop:obdDrop,obdBytes:obdBytes,setDemo:setDemo,feed:feed,sunUT:sunUT,version:'0.6.2'};
 })();
 </script>
 </body>

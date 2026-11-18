@@ -70,6 +70,13 @@ dropped, key words are found anywhere in the sentence, "and" / "then" joins two 
 recognizer's first guess makes no sense its other guesses are tried. If nothing fits, Jarvis says
 what it heard.
 
+**Sri Lankan places.** About 300 towns (with Sinhala names and common spellings) are built in. A spoken
+place is matched by sound, so "Mathara", "Mattara", "matra" or "මාතරට යමු" all lock Matara, and
+places you went to before are preferred. Among the recognizer's guesses, the one naming a known town
+wins. Google Maps gets "<town>, Sri Lanka" so it never picks a town of the same name abroad. On
+Android 13+ the town names are given to the recognizer as hints. "English (India)" in Settings may
+hear Sri Lankan names and accents better than US English.
+
 - "go to Matara", "take me to Galle", "I want to go to Ella", "how do I get to Kandy", "change destination to Jaffna", "matara yamu", "mahanuwarata yamu" - locks the destination and shows the route
 - "start" / "let's go" - begins guidance in Google Maps; "start navigation to Matara" does both; "cancel the route" clears it
 - "open google map", "show me the map", "where am I"
